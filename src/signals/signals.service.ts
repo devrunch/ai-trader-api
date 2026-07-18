@@ -2,14 +2,21 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
-import { createClient, RedisClientType } from 'redis';
+import {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} from '@aws-sdk/client-sqs';
 import { Signal, SignalDocument } from './schemas/signal.schema';
 import { SignalsGateway } from './signals.gateway';
 
 @Injectable()
 export class SignalsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SignalsService.name);
-  private subscriber: RedisClientType;
+  private sqs: SQSClient;
+  private queueUrl: string;
+  private polling = false;
+  private pollTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectModel(Signal.name) private readonly signalModel: Model<SignalDocument>,
@@ -17,29 +24,61 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
     private readonly gateway: SignalsGateway,
   ) {}
 
-  async onModuleInit() {
-    const redisUrl = this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-    this.subscriber = createClient({ url: redisUrl }) as RedisClientType;
+  onModuleInit() {
+    this.queueUrl = this.config.get<string>('SQS_SIGNALS_QUEUE_URL') ?? '';
+    if (!this.queueUrl) {
+      this.logger.warn('SQS_SIGNALS_QUEUE_URL not set — signal polling disabled');
+      return;
+    }
 
-    this.subscriber.on('error', (err) =>
-      this.logger.error('Redis subscriber error', err),
-    );
+    this.sqs = new SQSClient({
+      region: this.config.get<string>('AWS_REGION') ?? 'ap-south-1',
+      credentials: {
+        accessKeyId: this.config.get<string>('AWS_ACCESS_KEY_ID') ?? '',
+        secretAccessKey: this.config.get<string>('AWS_SECRET_ACCESS_KEY') ?? '',
+      },
+    });
 
-    await this.subscriber.connect();
-    await this.subscriber.subscribe('signals:new', (message) =>
-      this.handleSignal(message),
-    );
-
-    this.logger.log('Subscribed to Redis channel: signals:new');
+    this.polling = true;
+    this.poll();
+    this.logger.log('SQS signal poller started');
   }
 
-  async onModuleDestroy() {
-    await this.subscriber?.quit();
+  onModuleDestroy() {
+    this.polling = false;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
   }
 
-  private async handleSignal(raw: string) {
+  private async poll() {
+    if (!this.polling) return;
+
     try {
-      const data = JSON.parse(raw);
+      const result = await this.sqs.send(
+        new ReceiveMessageCommand({
+          QueueUrl: this.queueUrl,
+          MaxNumberOfMessages: 10,
+          WaitTimeSeconds: 20,       // long-poll — reduces cost vs busy-loop
+          VisibilityTimeout: 30,
+        }),
+      );
+
+      const messages = result.Messages ?? [];
+      await Promise.all(messages.map((msg) => this.handleMessage(msg)));
+    } catch (err) {
+      this.logger.error('SQS poll error', err);
+      // back off 5s on error, then resume
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+
+    // schedule next poll immediately (long-poll already waits 20s server-side)
+    if (this.polling) {
+      this.pollTimer = setTimeout(() => this.poll(), 0);
+    }
+  }
+
+  private async handleMessage(msg: { Body?: string; ReceiptHandle?: string }) {
+    try {
+      const data = JSON.parse(msg.Body ?? '{}');
 
       const signal = await this.signalModel.create({
         symbol: data.symbol,
@@ -54,12 +93,22 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
         generatedAt: data.generated_at ? new Date(data.generated_at) : new Date(),
       });
 
-      this.logger.log(`Signal saved: ${signal.symbol} ${signal.direction} @ ${signal.entryPrice}`);
+      this.logger.log(
+        `Signal saved: ${signal.symbol} ${signal.direction} @ ${signal.entryPrice}`,
+      );
 
-      // Broadcast to all connected WebSocket clients
       this.gateway.broadcastSignal(signal.toObject());
+
+      // delete from queue only after successful processing
+      await this.sqs.send(
+        new DeleteMessageCommand({
+          QueueUrl: this.queueUrl,
+          ReceiptHandle: msg.ReceiptHandle!,
+        }),
+      );
     } catch (err) {
-      this.logger.error('Failed to process signal', err);
+      this.logger.error('Failed to process signal message', err);
+      // message becomes visible again after VisibilityTimeout — automatic retry
     }
   }
 
