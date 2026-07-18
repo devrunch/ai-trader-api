@@ -6,6 +6,7 @@ import { BrokerModule } from './broker/broker.module';
 import { SignalsModule } from './signals/signals.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MarketModule } from './market/market.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SignalsModule,
     PortfolioModule,
     NotificationsModule,
+    MarketModule,
   ],
 })
 export class AppModule {}
