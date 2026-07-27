@@ -15,6 +15,14 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
+/** What `JwtStrategy.validate` / `GoogleStrategy.validate` attach to the request. */
+interface AuthenticatedRequest extends Request {
+  user: { id: string; email: string; plan: string; role: string };
+}
+interface GoogleCallbackRequest extends Request {
+  user: { token: string };
+}
+
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -50,8 +58,8 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@Req() req: Request) {
-    return (req as any).user;
+  me(@Req() req: AuthenticatedRequest) {
+    return req.user;
   }
 
   @Get('google')
@@ -62,8 +70,8 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  googleCallback(@Req() req: Request, @Res() res: Response) {
-    const { token } = (req as any).user as { token: string };
+  googleCallback(@Req() req: GoogleCallbackRequest, @Res() res: Response) {
+    const { token } = req.user;
     res.cookie('access_token', token, COOKIE_OPTS);
     res.redirect(process.env.FRONTEND_URL ?? 'http://localhost:3000');
   }

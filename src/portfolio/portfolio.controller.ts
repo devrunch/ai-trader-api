@@ -11,9 +11,10 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PaperTradingService } from './paper-trading.service';
+import { PaperTradingService, PortfolioView, RiskState } from './paper-trading.service';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { PlaceOrderDto } from './dto/place-order.dto';
+import { ResetPortfolioDto } from './dto/reset-portfolio.dto';
 import { Exchange } from './schemas/paper-portfolio.schema';
 
 interface AuthRequest extends Request {
@@ -39,9 +40,28 @@ export class PortfolioController {
     return this.paperTrading.listPortfolios(req.user.id);
   }
 
+  @Post('reset')
+  reset(@Req() req: AuthRequest, @Body() dto: ResetPortfolioDto) {
+    const exch = (dto?.exchange?.toUpperCase() as Exchange) || Exchange.NSE;
+    return this.paperTrading.resetPortfolio(req.user.id, exch);
+  }
+
   @Get('portfolio/:exchange')
-  getPortfolio(@Req() req: AuthRequest, @Param('exchange') exchange: string): Promise<any> {
+  getPortfolio(@Req() req: AuthRequest, @Param('exchange') exchange: string): Promise<PortfolioView> {
     return this.paperTrading.getPortfolio(req.user.id, exchange.toUpperCase() as Exchange);
+  }
+
+  /**
+   * Where the account stands against the position, aggregate-risk and daily-loss
+   * limits. Exposed so the UI can show the ceiling *before* an order is refused,
+   * rather than only in the rejection message.
+   */
+  @Get('risk')
+  getRiskState(@Req() req: AuthRequest, @Query('exchange') exchange?: string): Promise<RiskState> {
+    return this.paperTrading.getRiskState(
+      req.user.id,
+      ((exchange ?? 'NSE').toUpperCase()) as Exchange,
+    );
   }
 
   // ------------------------------------------------------------------
@@ -53,9 +73,11 @@ export class PortfolioController {
     return this.paperTrading.placeOrder(req.user.id, dto);
   }
 
+  // Scoped to the authenticated user — without this any logged-in user could
+  // execute another user's pending order by guessing/knowing its id.
   @Put('order/:id/execute')
-  executeOrder(@Param('id') id: string) {
-    return this.paperTrading.executeOrder(id);
+  executeOrder(@Req() req: AuthRequest, @Param('id') id: string) {
+    return this.paperTrading.executeOrder(id, undefined, req.user.id);
   }
 
   @Get('orders')

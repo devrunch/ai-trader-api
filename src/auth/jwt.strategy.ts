@@ -6,6 +6,7 @@ import { Strategy, ExtractJwt } from 'passport-jwt';
 import { Model } from 'mongoose';
 import { Request } from 'express';
 import { User, UserDocument } from './schemas/user.schema';
+import { requireJwtSecret } from './jwt-secret';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -18,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         (req: Request) => req?.cookies?.access_token ?? null,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
-      secretOrKey: config.get<string>('JWT_SECRET') ?? 'dev-secret',
+      secretOrKey: requireJwtSecret(config),
       ignoreExpiration: false,
     });
   }

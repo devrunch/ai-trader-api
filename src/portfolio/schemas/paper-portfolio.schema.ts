@@ -6,6 +6,8 @@ export type PaperPortfolioDocument = PaperPortfolio & Document;
 export enum Exchange {
   NSE = 'NSE',
   BSE = 'BSE',
+  NASDAQ = 'NASDAQ',
+  NYSE = 'NYSE',
   FOREX = 'FOREX',
 }
 

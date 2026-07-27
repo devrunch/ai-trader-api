@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
+import { requireJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
@@ -17,7 +18,11 @@ import { GoogleStrategy } from './google.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') ?? 'dev-secret',
+        // Fail loudly rather than booting with a guessable key. A silent
+        // 'dev-secret' fallback means a missing env var in production yields a
+        // working app whose tokens anyone can forge — a total auth bypass with
+        // no visible symptom.
+        secret: requireJwtSecret(config),
         signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN') ?? '15m' },
       }),
       inject: [ConfigService],

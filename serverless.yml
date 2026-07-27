@@ -1,0 +1,92 @@
+service: ai-trader-api
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-south-1
+  memorySize: 512        # enough for NestJS warm start ~200ms
+  timeout: 29            # API GW hard limit is 30s
+  environment:
+    NODE_ENV: production
+  # Pull all secrets from SSM Parameter Store at deploy time
+  # Set them with: aws ssm put-parameter --name /ai-trader/api/MONGODB_URI --value "..." --type SecureString
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource: arn:aws:ssm:ap-south-1:*:parameter/ai-trader/api/*
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+          Resource: arn:aws:sqs:ap-south-1:*:ai-trader-*
+
+package:
+  individually: false
+  patterns:
+    - '!src/**'
+    - '!test/**'
+    - '!*.md'
+    - '!.env*'
+    - '!node_modules/.bin/**'
+    - '!node_modules/@types/**'
+    - 'dist/**'
+    - 'node_modules/**'
+
+functions:
+  api:
+    handler: dist/lambda.lambdaHandler
+    events:
+      - httpApi:
+          path: /api/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api
+          method: ANY
+    environment:
+      MONGODB_URI:          ${ssm:/ai-trader/api/MONGODB_URI}
+      JWT_SECRET:           ${ssm:/ai-trader/api/JWT_SECRET}
+      GOOGLE_CLIENT_ID:     ${ssm:/ai-trader/api/GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${ssm:/ai-trader/api/GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL:  ${ssm:/ai-trader/api/GOOGLE_CALLBACK_URL}
+      SIGNALS_SERVICE_URL:  ${ssm:/ai-trader/api/SIGNALS_SERVICE_URL}
+      FRONTEND_URL:         ${ssm:/ai-trader/api/FRONTEND_URL}
+      INTERNAL_API_KEY:     ${ssm:/ai-trader/api/INTERNAL_API_KEY}
+      SQS_SIGNALS_QUEUE_URL: ${ssm:/ai-trader/signals/SQS_SIGNALS_QUEUE_URL}
+      # MUST stay false here. sqsConsumer below is the queue's only consumer;
+      # the API Lambda boots the full AppModule, so an in-process poller here
+      # would be a second consumer whose background work is frozen the moment
+      # the HTTP response returns — 30s-invisible messages, redelivery, dupes.
+      SIGNALS_POLLER_ENABLED: 'false'
+
+  # Separate function that consumes SQS signals and saves to MongoDB
+  sqsConsumer:
+    handler: dist/lambda.sqsHandler
+    timeout: 60
+    environment:
+      # The full AppModule boots here too, so every key the modules validate at
+      # startup must be present — previously only MONGODB_URI and JWT_SECRET
+      # were set, leaving INTERNAL_API_KEY and the upstream URL undefined.
+      NODE_ENV:             production
+      MONGODB_URI:          ${ssm:/ai-trader/api/MONGODB_URI}
+      JWT_SECRET:           ${ssm:/ai-trader/api/JWT_SECRET}
+      INTERNAL_API_KEY:     ${ssm:/ai-trader/api/INTERNAL_API_KEY}
+      SIGNALS_SERVICE_URL:  ${ssm:/ai-trader/api/SIGNALS_SERVICE_URL}
+      FRONTEND_URL:         ${ssm:/ai-trader/api/FRONTEND_URL}
+      GOOGLE_CLIENT_ID:     ${ssm:/ai-trader/api/GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${ssm:/ai-trader/api/GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL:  ${ssm:/ai-trader/api/GOOGLE_CALLBACK_URL}
+      SQS_SIGNALS_QUEUE_URL: ${ssm:/ai-trader/signals/SQS_SIGNALS_QUEUE_URL}
+      SIGNALS_POLLER_ENABLED: 'false'
+    events:
+      - sqs:
+          arn: ${ssm:/ai-trader/signals/SQS_SIGNALS_QUEUE_ARN}
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+
+# No plugins needed for production deploy; serverless-offline requires local install

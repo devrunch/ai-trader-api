@@ -6,8 +6,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MarketService } from './market.service';
 
 /* ── Allowlists ── */
 const SYMBOL_RE   = /^[A-Z0-9^._-]{1,20}$/;          // NSE tickers, indices (^NSEI), forex pairs
@@ -51,27 +51,18 @@ function validSymbolList(csv: string): string[] {
   return csv.split(',').map(s => validSymbol(s));
 }
 
+/**
+ * Validation only. Transport, timeouts, retries and upstream status mapping
+ * live in `MarketService` / `UpstreamHttpClient`.
+ */
 @UseGuards(JwtAuthGuard)
 @Controller('market')
 export class MarketController {
-  private readonly signalsUrl: string;
-
-  constructor(private readonly config: ConfigService) {
-    this.signalsUrl =
-      this.config.get<string>('SIGNALS_SERVICE_URL') ?? 'http://localhost:8001';
-  }
-
-  private async proxy(path: string, params: URLSearchParams): Promise<unknown> {
-    const qs = params.toString();
-    const url = `${this.signalsUrl}${path}${qs ? `?${qs}` : ''}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new BadRequestException(`Upstream ${res.status}`);
-    return res.json();
-  }
+  constructor(private readonly market: MarketService) {}
 
   @Get('status')
   status() {
-    return this.proxy('/market/status', new URLSearchParams());
+    return this.market.status();
   }
 
   @Get('news')
@@ -85,7 +76,7 @@ export class MarketController {
       params.set('symbols', validated);
     }
     params.set('limit', String(validLimit(limit)));
-    return this.proxy('/market/news', params);
+    return this.market.news(params);
   }
 
   @Get('quote/:symbol')
@@ -95,7 +86,7 @@ export class MarketController {
   ) {
     const params = new URLSearchParams();
     params.set('exchange', validExchange(exchange));
-    return this.proxy(`/market/quote/${validSymbol(symbol)}`, params);
+    return this.market.quote(validSymbol(symbol), params);
   }
 
   @Get('historical/:symbol')
@@ -109,6 +100,6 @@ export class MarketController {
     params.set('exchange', validExchange(exchange));
     params.set('interval', validInterval(interval));
     params.set('days',     String(validDays(days)));
-    return this.proxy(`/market/historical/${validSymbol(symbol)}`, params);
+    return this.market.historical(validSymbol(symbol), params);
   }
 }
