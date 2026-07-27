@@ -4,3 +4,6 @@ dist/
 *.log
 coverage/
 .DS_Store
+
+# TypeScript incremental build cache — machine-local, not source.
+*.tsbuildinfo
