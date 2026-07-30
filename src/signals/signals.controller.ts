@@ -7,7 +7,15 @@ import { ChatSessionsService, UpstreamTurn } from '../chat/chat-sessions.service
 import { SignalsService } from './signals.service';
 import { SignalsUpstreamClient } from './signals-upstream.client';
 import { ChatDto } from './dto/chat.dto';
-import { EXCHANGES, SYMBOL_RE, normaliseChatRequest } from './chat-request';
+import { SYMBOL_RE, normaliseChatRequest } from './chat-request';
+
+// Narrower than the chat/market EXCHANGES: on-demand signal generation runs
+// its own validation and cost model (validation.py, cost_pct_round_trip) built
+// and tuned for NSE intraday equity. Widening EXCHANGES for chat/quotes must
+// not silently widen this too — a "signal" for a NASDAQ symbol would apply
+// Indian brokerage costs and risk assumptions to a market they were never
+// measured against.
+const SIGNAL_EXCHANGES = new Set(['NSE', 'BSE']);
 
 interface AuthRequest extends Request {
   user: { id: string; email: string; plan: string };
@@ -40,7 +48,11 @@ export class SignalsController {
     const sym  = symbol.trim().toUpperCase();
     const exch = exchange.trim().toUpperCase();
     if (!SYMBOL_RE.test(sym)) throw new BadRequestException(`Invalid symbol: ${symbol}`);
-    if (!EXCHANGES.has(exch)) throw new BadRequestException(`Invalid exchange: ${exchange}`);
+    if (!SIGNAL_EXCHANGES.has(exch)) {
+      throw new BadRequestException(
+        `Signal generation is available for NSE and BSE only right now: ${exchange}`,
+      );
+    }
 
     return this.upstream.generate(sym, exch);
   }

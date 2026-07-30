@@ -9,11 +9,30 @@ import {
 } from 'class-validator';
 import { OrderSide, OrderType } from '../schemas/paper-order.schema';
 
+/**
+ * Exchanges a paper order may actually be placed on.
+ *
+ * Deliberately narrower than the `Exchange` enum used elsewhere for portfolio
+ * typing (which also lists NASDAQ, NYSE, FOREX for reading quotes and asking
+ * the agent about them). The paper account is denominated in rupees —
+ * `cashBalance` is a rupee figure — so an order in a dollar-priced symbol
+ * would debit "200" rupees for a $200 fill with no conversion. Until that is
+ * actually handled, trading stays NSE/BSE only; the exchange field was
+ * previously `@IsString()` with no allowlist at all, so this was reachable
+ * the moment anything upstream started offering non-Indian symbols.
+ */
+export enum TradableExchange {
+  NSE = 'NSE',
+  BSE = 'BSE',
+}
+
 export class PlaceOrderDto {
   @IsString()
   symbol: string;
 
-  @IsString()
+  @IsEnum(TradableExchange, {
+    message: 'Paper trading is available for NSE and BSE only right now',
+  })
   exchange: string;
 
   @IsEnum(OrderSide)

@@ -2,7 +2,12 @@ import { BadRequestException } from '@nestjs/common';
 import { ChatDto } from './dto/chat.dto';
 
 export const SYMBOL_RE = /^[A-Z0-9^._-]{1,20}$/;
-export const EXCHANGES = new Set(['NSE', 'BSE']);
+// Which exchanges the agent can be ASKED about. Separate from which ones can be
+// TRADED on — see PlaceOrderDto's own allowlist, which is deliberately
+// narrower: a paper account is denominated in rupees, so an order in a
+// dollar-priced symbol would silently mix currencies. Reading a NASDAQ chart
+// and asking the AI about it carries none of that risk.
+export const EXCHANGES = new Set(['NSE', 'BSE', 'NASDAQ', 'NYSE']);
 
 export interface NormalisedChatRequest {
   symbol: string;
