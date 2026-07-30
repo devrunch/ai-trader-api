@@ -20,6 +20,10 @@ export class MarketService {
     return this.http.request('/market/news', { params });
   }
 
+  search(params: URLSearchParams): Promise<unknown> {
+    return this.http.request('/market/search', { params });
+  }
+
   quote(symbol: string, params: URLSearchParams): Promise<unknown> {
     return this.http.request(
       `/market/quote/${encodeURIComponent(symbol)}`,

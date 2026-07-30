@@ -79,6 +79,16 @@ export class MarketController {
     return this.market.news(params);
   }
 
+  @Get('search')
+  search(@Query('q') q = '') {
+    const query = q.trim();
+    if (query.length < 1 || query.length > 40) {
+      throw new BadRequestException('q must be 1–40 characters');
+    }
+    const params = new URLSearchParams({ q: query });
+    return this.market.search(params);
+  }
+
   @Get('quote/:symbol')
   quote(
     @Param('symbol')   symbol: string,
