@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { BrokerController } from './broker.controller';
+import { ZerodhaSessionService } from './zerodha-session.service';
+import { ZerodhaSession, ZerodhaSessionSchema } from './schemas/zerodha-session.schema';
 
-/**
- * Intentional placeholder — live broker integration (Dhan / Zerodha / AngelOne)
- * is planned, and the DHAN_*, ZERODHA_* and ANGELONE_* keys in `.env` exist for
- * it. It is empty because the work has not started, not because it is broken.
- */
-@Module({})
+/** The current Zerodha Kite Connect access_token, refreshed daily. */
+@Module({
+  imports: [
+    MongooseModule.forFeature([{ name: ZerodhaSession.name, schema: ZerodhaSessionSchema }]),
+  ],
+  providers: [ZerodhaSessionService],
+  controllers: [BrokerController],
+})
 export class BrokerModule {}
