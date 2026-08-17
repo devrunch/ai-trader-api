@@ -7,10 +7,12 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Server, Socket } from 'socket.io';
+import Redis from 'ioredis';
+import { UpstreamHttpClient } from '../common/http/upstream-http.client';
 
 /** Minimal cookie-header parser — avoids pulling a dependency for one field. */
 function parseCookies(header?: string): Record<string, string> {
@@ -47,8 +49,17 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect 
   server: Server;
 
   private readonly logger = new Logger(SignalsGateway.name);
+  private readonly symbolExchanges: Map<string, string>;
 
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly upstream: UpstreamHttpClient,
+  ) {
+    this.symbolExchanges = new Map();
+    this.redis.subscribe('market:ticks');
+    this.redis.on('message', (channel, message) => this.handleRedisMessage(channel, message));
+  }
 
   /**
    * Authenticate on connect, not on join.
@@ -89,19 +100,61 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect 
   @SubscribeMessage('subscribe_symbol')
   handleSubscribeSymbol(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { symbol: string },
+    @MessageBody() data: { symbol: string; exchange: string },
   ) {
-    const room = `symbol:${data.symbol.toUpperCase()}`;
+    const symbol = data.symbol.toUpperCase();
+    const room = `symbol:${symbol}`;
+    const wasEmpty = !this.server?.sockets?.adapter.rooms.get(room)?.size;
     client.join(room);
     client.emit('subscribed', { room });
+    this.symbolExchanges.set(symbol, data.exchange.toUpperCase());
+    if (wasEmpty) {
+      this.callInternal('subscribe', symbol, data.exchange.toUpperCase());
+    }
   }
 
   @SubscribeMessage('unsubscribe_symbol')
   handleUnsubscribeSymbol(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { symbol: string },
+    @MessageBody() data: { symbol: string; exchange: string },
   ) {
-    client.leave(`symbol:${data.symbol.toUpperCase()}`);
+    const symbol = data.symbol.toUpperCase();
+    const room = `symbol:${symbol}`;
+    // Checked before `leave()`, not after: this client is the last member
+    // iff the room currently has exactly one — itself.
+    const wasLast = (this.server?.sockets?.adapter.rooms.get(room)?.size ?? 0) <= 1;
+    client.leave(room);
+    if (wasLast) {
+      this.callInternal('unsubscribe', symbol, data.exchange.toUpperCase());
+    }
+  }
+
+  private callInternal(action: 'subscribe' | 'unsubscribe', symbol: string, exchange: string) {
+    this.upstream
+      .request(`/market/internal/live-ticks/${action}`, {
+        method: 'POST',
+        body: { symbol, exchange },
+        retryOnNetworkError: true,
+      })
+      .catch((e: Error) => this.logger.error(`live-ticks ${action} failed for ${symbol}: ${e.message}`));
+  }
+
+  private handleRedisMessage(channel: string, message: string) {
+    if (channel !== 'market:ticks' || !this.server) return;
+    const payload = JSON.parse(message);
+    this.server.to(`symbol:${payload.symbol}`).emit('tick', payload);
+  }
+
+  getActiveSymbols(): { symbol: string; exchange: string }[] {
+    if (!this.server) return [];
+    const result: { symbol: string; exchange: string }[] = [];
+    for (const [room, members] of this.server.sockets.adapter.rooms) {
+      if (!room.startsWith('symbol:') || members.size === 0) continue;
+      const symbol = room.slice('symbol:'.length);
+      const exchange = this.symbolExchanges.get(symbol);
+      if (exchange) result.push({ symbol, exchange });
+    }
+    return result;
   }
 
   // Called by SignalsService when a new signal arrives from the SQS queue.

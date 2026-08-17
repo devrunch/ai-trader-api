@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import Redis from 'ioredis';
 import { AuthModule } from '../auth/auth.module';
 import { ChatModule } from '../chat/chat.module';
 import { Signal, SignalSchema } from './schemas/signal.schema';
@@ -15,7 +16,15 @@ import { SignalsUpstreamClient } from './signals-upstream.client';
     ChatModule,
     MongooseModule.forFeature([{ name: Signal.name, schema: SignalSchema }]),
   ],
-  providers: [SignalsGateway, SignalsService, SignalsUpstreamClient],
+  providers: [
+    SignalsGateway,
+    SignalsService,
+    SignalsUpstreamClient,
+    {
+      provide: 'REDIS_CLIENT',
+      useFactory: () => new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379/0'),
+    },
+  ],
   controllers: [ChatStreamController, SignalsController],
   exports: [SignalsGateway],
 })
