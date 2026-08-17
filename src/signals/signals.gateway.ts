@@ -7,7 +7,7 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Inject, Logger } from '@nestjs/common';
+import { Inject, Logger, OnModuleDestroy } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Server, Socket } from 'socket.io';
@@ -44,21 +44,37 @@ function parseCookies(header?: string): Record<string, string> {
   },
   namespace: '/',
 })
-export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(SignalsGateway.name);
-  private readonly symbolExchanges: Map<string, string>;
+  // key: `${symbol}:${exchange}` -> count of distinct clients currently watching
+  // that pair. Independent of the `symbol:${symbol}` Socket.IO room (which stays
+  // exchange-agnostic for tick delivery and broadcastSignal compatibility) — this
+  // is what drives Python's per-exchange subscribe/unsubscribe lifecycle, since
+  // the same symbol can legitimately trade on more than one exchange (RELIANCE on
+  // both NSE and BSE) with independent watchers.
+  private readonly watcherCounts = new Map<string, number>();
+  // key: client.id -> Map<symbol, exchange> — what THIS client currently watches,
+  // so a disconnect can decrement correctly without relying on Socket.IO's own
+  // room state, which may already be cleared by the time the disconnect event fires.
+  private readonly clientWatching = new Map<string, Map<string, string>>();
 
   constructor(
     private readonly jwt: JwtService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly upstream: UpstreamHttpClient,
   ) {
-    this.symbolExchanges = new Map();
-    this.redis.subscribe('market:ticks');
+    this.redis.on('error', (err) => this.logger.error(`Redis client error: ${err.message}`));
+    this.redis.subscribe('market:ticks').catch((err: Error) =>
+      this.logger.error(`Failed to subscribe to market:ticks: ${err.message}`),
+    );
     this.redis.on('message', (channel, message) => this.handleRedisMessage(channel, message));
+  }
+
+  onModuleDestroy() {
+    this.redis.disconnect();
   }
 
   /**
@@ -94,39 +110,83 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+    const watching = this.clientWatching.get(client.id);
+    this.clientWatching.delete(client.id);
+    if (!watching) return;
+    for (const [symbol, exchange] of watching) {
+      this.decrementWatcher(symbol, exchange);
+    }
   }
 
   // Client subscribes to a symbol's signal feed
   @SubscribeMessage('subscribe_symbol')
   handleSubscribeSymbol(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { symbol: string; exchange: string },
+    @MessageBody() data: { symbol?: string; exchange?: string },
   ) {
+    if (!data?.symbol || !data?.exchange) {
+      this.logger.warn(`Malformed subscribe_symbol from ${client.id}: ${JSON.stringify(data)}`);
+      return;
+    }
     const symbol = data.symbol.toUpperCase();
+    const exchange = data.exchange.toUpperCase();
     const room = `symbol:${symbol}`;
-    const wasEmpty = !this.server?.sockets?.adapter.rooms.get(room)?.size;
     client.join(room);
     client.emit('subscribed', { room });
-    this.symbolExchanges.set(symbol, data.exchange.toUpperCase());
-    if (wasEmpty) {
-      this.callInternal('subscribe', symbol, data.exchange.toUpperCase());
+
+    let watching = this.clientWatching.get(client.id);
+    if (!watching) {
+      watching = new Map();
+      this.clientWatching.set(client.id, watching);
+    }
+
+    const previousExchange = watching.get(symbol);
+    if (previousExchange === exchange) return; // already watching this exact pair
+    if (previousExchange) {
+      this.decrementWatcher(symbol, previousExchange); // switching exchanges on the same symbol
+    }
+
+    watching.set(symbol, exchange);
+    const pairKey = `${symbol}:${exchange}`;
+    const count = (this.watcherCounts.get(pairKey) ?? 0) + 1;
+    this.watcherCounts.set(pairKey, count);
+    if (count === 1) {
+      this.callInternal('subscribe', symbol, exchange);
     }
   }
 
   @SubscribeMessage('unsubscribe_symbol')
   handleUnsubscribeSymbol(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { symbol: string; exchange: string },
+    @MessageBody() data: { symbol?: string; exchange?: string },
   ) {
+    if (!data?.symbol || !data?.exchange) {
+      this.logger.warn(`Malformed unsubscribe_symbol from ${client.id}: ${JSON.stringify(data)}`);
+      return;
+    }
     const symbol = data.symbol.toUpperCase();
+    const exchange = data.exchange.toUpperCase();
     const room = `symbol:${symbol}`;
-    // Checked after `leave()`, not before: `leave()` is a safe no-op for a
-    // client that isn't a member, so this stays correct even on a duplicate
-    // unsubscribe (e.g. reconnect cleanup) that isn't the actual last member.
     client.leave(room);
-    const wasLast = !this.server?.sockets?.adapter.rooms.get(room)?.size;
-    if (wasLast) {
-      this.callInternal('unsubscribe', symbol, data.exchange.toUpperCase());
+
+    // Guarded by our own bookkeeping rather than `leave()`'s no-op behavior
+    // (unlike the old room-based check): a duplicate/stale unsubscribe for a
+    // pair this client isn't tracked as watching must not decrement a real
+    // remaining watcher's count.
+    const watching = this.clientWatching.get(client.id);
+    if (watching?.get(symbol) !== exchange) return;
+    watching.delete(symbol);
+    this.decrementWatcher(symbol, exchange);
+  }
+
+  private decrementWatcher(symbol: string, exchange: string) {
+    const pairKey = `${symbol}:${exchange}`;
+    const count = this.watcherCounts.get(pairKey) ?? 0;
+    if (count <= 1) {
+      this.watcherCounts.delete(pairKey);
+      this.callInternal('unsubscribe', symbol, exchange);
+    } else {
+      this.watcherCounts.set(pairKey, count - 1);
     }
   }
 
@@ -142,20 +202,22 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   private handleRedisMessage(channel: string, message: string) {
     if (channel !== 'market:ticks' || !this.server) return;
-    const payload = JSON.parse(message);
+    let payload: { symbol?: string };
+    try {
+      payload = JSON.parse(message);
+    } catch (e) {
+      this.logger.warn(`Malformed market:ticks message: ${(e as Error).message}`);
+      return;
+    }
+    if (!payload?.symbol) return;
     this.server.to(`symbol:${payload.symbol}`).emit('tick', payload);
   }
 
   getActiveSymbols(): { symbol: string; exchange: string }[] {
-    if (!this.server) return [];
-    const result: { symbol: string; exchange: string }[] = [];
-    for (const [room, members] of this.server.sockets.adapter.rooms) {
-      if (!room.startsWith('symbol:') || members.size === 0) continue;
-      const symbol = room.slice('symbol:'.length);
-      const exchange = this.symbolExchanges.get(symbol);
-      if (exchange) result.push({ symbol, exchange });
-    }
-    return result;
+    return Array.from(this.watcherCounts.keys()).map((pairKey) => {
+      const idx = pairKey.lastIndexOf(':');
+      return { symbol: pairKey.slice(0, idx), exchange: pairKey.slice(idx + 1) };
+    });
   }
 
   // Called by SignalsService when a new signal arrives from the SQS queue.
