@@ -6,8 +6,25 @@ import { SignalsGateway } from './signals.gateway';
  * LAST one leaving, none in between.
  */
 
-function fakeSocket(id: string, data: Record<string, unknown> = {}) {
-  return { id, data, join: jest.fn(), leave: jest.fn(), emit: jest.fn() } as any;
+// `join`/`leave` mutate the shared fake `rooms` map exactly like real
+// Socket.IO does — `join` adds the socket's id to the room's Set (creating
+// it if needed), `leave` removes it (a no-op if the socket wasn't a
+// member). Tests rely on this real mutation instead of manually poking the
+// rooms map, so a duplicate/non-member `leave()` behaves the same way it
+// would in production.
+function fakeSocket(id: string, rooms: Map<string, Set<string>>, data: Record<string, unknown> = {}) {
+  return {
+    id,
+    data,
+    join: jest.fn((room: string) => {
+      if (!rooms.has(room)) rooms.set(room, new Set());
+      rooms.get(room)!.add(id);
+    }),
+    leave: jest.fn((room: string) => {
+      rooms.get(room)?.delete(id);
+    }),
+    emit: jest.fn(),
+  } as any;
 }
 
 function fakeRoomsMap() {
@@ -32,10 +49,9 @@ describe('SignalsGateway live-tick subscriptions', () => {
   it('calls internal subscribe only when the room gains its first member', () => {
     const { gateway, httpClient, fakeServer } = setup();
     fakeServer.rooms.set('symbol:RELIANCE', new Set());
-    const client = fakeSocket('s1');
+    const client = fakeSocket('s1', fakeServer.rooms);
 
     gateway.handleSubscribeSymbol(client, { symbol: 'RELIANCE', exchange: 'NSE' });
-    fakeServer.rooms.get('symbol:RELIANCE')!.add('s1');
 
     expect(httpClient.request).toHaveBeenCalledTimes(1);
     expect(httpClient.request).toHaveBeenCalledWith(
@@ -48,8 +64,7 @@ describe('SignalsGateway live-tick subscriptions', () => {
     const { gateway, httpClient, fakeServer } = setup();
     fakeServer.rooms.set('symbol:RELIANCE', new Set(['s1']));
 
-    gateway.handleSubscribeSymbol(fakeSocket('s2'), { symbol: 'RELIANCE', exchange: 'NSE' });
-    fakeServer.rooms.get('symbol:RELIANCE')!.add('s2');
+    gateway.handleSubscribeSymbol(fakeSocket('s2', fakeServer.rooms), { symbol: 'RELIANCE', exchange: 'NSE' });
 
     expect(httpClient.request).not.toHaveBeenCalled();
   });
@@ -58,8 +73,7 @@ describe('SignalsGateway live-tick subscriptions', () => {
     const { gateway, httpClient, fakeServer } = setup();
     fakeServer.rooms.set('symbol:RELIANCE', new Set(['s1']));
 
-    gateway.handleUnsubscribeSymbol(fakeSocket('s1'), { symbol: 'RELIANCE', exchange: 'NSE' });
-    fakeServer.rooms.delete('symbol:RELIANCE');
+    gateway.handleUnsubscribeSymbol(fakeSocket('s1', fakeServer.rooms), { symbol: 'RELIANCE', exchange: 'NSE' });
 
     expect(httpClient.request).toHaveBeenCalledWith(
       '/market/internal/live-ticks/unsubscribe',
@@ -71,10 +85,28 @@ describe('SignalsGateway live-tick subscriptions', () => {
     const { gateway, httpClient, fakeServer } = setup();
     fakeServer.rooms.set('symbol:RELIANCE', new Set(['s1', 's2']));
 
-    gateway.handleUnsubscribeSymbol(fakeSocket('s1'), { symbol: 'RELIANCE', exchange: 'NSE' });
-    fakeServer.rooms.get('symbol:RELIANCE')!.delete('s1');
+    gateway.handleUnsubscribeSymbol(fakeSocket('s1', fakeServer.rooms), { symbol: 'RELIANCE', exchange: 'NSE' });
 
     expect(httpClient.request).not.toHaveBeenCalled();
+  });
+
+  it('does not spuriously unsubscribe a genuine remaining watcher on a duplicate/non-member unsubscribe event', () => {
+    // Regression test: client A and B both watch RELIANCE. A unsubscribes
+    // normally (correct: B remains, no internal call). If A's
+    // `unsubscribe_symbol` fires again — a duplicate client event, reconnect
+    // cleanup, or a React effect double-invoke — A is no longer a room
+    // member, so `leave()` must be a no-op and B's feed must NOT be killed.
+    const { gateway, httpClient, fakeServer } = setup();
+    fakeServer.rooms.set('symbol:RELIANCE', new Set(['a', 'b']));
+    const clientA = fakeSocket('a', fakeServer.rooms);
+
+    gateway.handleUnsubscribeSymbol(clientA, { symbol: 'RELIANCE', exchange: 'NSE' });
+    expect(httpClient.request).not.toHaveBeenCalled();
+
+    gateway.handleUnsubscribeSymbol(clientA, { symbol: 'RELIANCE', exchange: 'NSE' });
+    expect(httpClient.request).not.toHaveBeenCalled();
+
+    expect(fakeServer.rooms.get('symbol:RELIANCE')).toEqual(new Set(['b']));
   });
 
   it('getActiveSymbols returns every non-empty symbol room with its exchange', () => {
@@ -82,7 +114,7 @@ describe('SignalsGateway live-tick subscriptions', () => {
     fakeServer.rooms.set('symbol:RELIANCE', new Set(['s1']));
     fakeServer.rooms.set('symbol:TCS', new Set());
     fakeServer.rooms.set('user:abc123', new Set(['s1']));
-    gateway.handleSubscribeSymbol(fakeSocket('s1'), { symbol: 'RELIANCE', exchange: 'NSE' });
+    gateway.handleSubscribeSymbol(fakeSocket('s1', fakeServer.rooms), { symbol: 'RELIANCE', exchange: 'NSE' });
 
     const active = gateway.getActiveSymbols();
 

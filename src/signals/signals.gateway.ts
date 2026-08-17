@@ -120,10 +120,11 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect 
   ) {
     const symbol = data.symbol.toUpperCase();
     const room = `symbol:${symbol}`;
-    // Checked before `leave()`, not after: this client is the last member
-    // iff the room currently has exactly one — itself.
-    const wasLast = (this.server?.sockets?.adapter.rooms.get(room)?.size ?? 0) <= 1;
+    // Checked after `leave()`, not before: `leave()` is a safe no-op for a
+    // client that isn't a member, so this stays correct even on a duplicate
+    // unsubscribe (e.g. reconnect cleanup) that isn't the actual last member.
     client.leave(room);
+    const wasLast = !this.server?.sockets?.adapter.rooms.get(room)?.size;
     if (wasLast) {
       this.callInternal('unsubscribe', symbol, data.exchange.toUpperCase());
     }
