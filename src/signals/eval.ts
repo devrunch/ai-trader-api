@@ -14,6 +14,8 @@
  * bucketing stay here, because presentation is legitimately the API's job.
  */
 
+import { round2 } from '../portfolio/paper-trading.types';
+
 export type SignalOutcomeKind = 'TARGET_HIT' | 'STOP_HIT' | 'OPEN' | 'NO_DATA';
 
 export interface SignalOutcome {
@@ -107,8 +109,6 @@ export interface PerformanceStats {
   /** True when the CI includes zero — the honest "we cannot tell yet" flag. */
   inconclusive: boolean;
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * How long the same setup is treated as one idea rather than many.

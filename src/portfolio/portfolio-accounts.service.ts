@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -154,7 +160,12 @@ export class PortfolioAccountsService {
     try {
       return await this.market.ltp(symbol, exchange);
     } catch (e) {
-      throw new BadRequestException(
+      // `MarketService`/`UpstreamHttpClient` already pick the right status for
+      // upstream failures (404/503/etc) — rethrow those as-is instead of
+      // flattening every failure to 400. Only a non-HTTP error here is a
+      // genuine "could not even form the request" case.
+      if (e instanceof HttpException) throw e;
+      throw new ServiceUnavailableException(
         `Could not fetch live price for ${symbol}/${exchange}: ${(e as Error).message}`,
       );
     }

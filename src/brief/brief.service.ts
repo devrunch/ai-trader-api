@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { MorningBrief, MorningBriefDocument } from './schemas/brief.schema';
@@ -14,7 +14,7 @@ export class BriefService {
   /** Upsert by date — regenerating a day's brief replaces it rather than duplicating. */
   async store(payload: StoreBriefDto) {
     const date = payload?.date;
-    if (!date) throw new NotFoundException('Brief payload missing date');
+    if (!date) throw new BadRequestException('Brief payload missing date');
     const saved = await this.briefModel.findOneAndUpdate(
       { date },
       {
