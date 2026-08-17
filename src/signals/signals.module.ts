@@ -9,6 +9,7 @@ import { SignalsGateway } from './signals.gateway';
 import { SignalsController } from './signals.controller';
 import { ChatStreamController } from './chat-stream.controller';
 import { SignalsUpstreamClient } from './signals-upstream.client';
+import { LiveTicksInternalController } from './live-ticks-internal.controller';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { SignalsUpstreamClient } from './signals-upstream.client';
       useFactory: () => new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379/0'),
     },
   ],
-  controllers: [ChatStreamController, SignalsController],
+  controllers: [ChatStreamController, SignalsController, LiveTicksInternalController],
   exports: [SignalsGateway],
 })
 export class SignalsModule {}
