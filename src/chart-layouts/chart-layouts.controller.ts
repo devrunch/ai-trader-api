@@ -14,7 +14,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChartLayoutsService } from './chart-layouts.service';
 import { SaveLayoutDto } from './dto/save-layout.dto';
 
-const SYMBOL_RE = /^[A-Z0-9^._-]{1,20}$/;
+// Space included: real NSE index tickers have one ("NIFTY 50", "NIFTY BANK").
+const SYMBOL_RE = /^[A-Z0-9^._ -]{1,20}$/;
 
 interface AuthRequest extends Request {
   user: { id: string; email: string; plan: string };

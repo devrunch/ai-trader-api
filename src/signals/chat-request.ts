@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { ChatDto } from './dto/chat.dto';
 
-export const SYMBOL_RE = /^[A-Z0-9^._-]{1,20}$/;
+// Space included: real NSE index tickers have one ("NIFTY 50", "NIFTY BANK").
+export const SYMBOL_RE = /^[A-Z0-9^._ -]{1,20}$/;
 // Which exchanges the agent can be ASKED about. Separate from which ones can be
 // TRADED on — see PlaceOrderDto's own allowlist, which is deliberately
 // narrower: a paper account is denominated in rupees, so an order in a
