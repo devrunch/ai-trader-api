@@ -1,11 +1,10 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { SYMBOL_RE } from '../common/symbol';
 import { WatchlistItem, WatchlistItemDocument } from './schemas/watchlist-item.schema';
 
 const MAX_WATCHLIST_SIZE = 15;
-// Space included: real NSE index tickers have one ("NIFTY 50", "NIFTY BANK").
-const SYMBOL_RE = /^[A-Z0-9^._ -]{1,20}$/;
 
 @Injectable()
 export class WatchlistService {

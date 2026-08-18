@@ -7,11 +7,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SYMBOL_RE } from '../common/symbol';
 import { MarketService } from './market.service';
 
 /* ── Allowlists ── */
-// Space included: real NSE index tickers have one ("NIFTY 50", "NIFTY BANK").
-const SYMBOL_RE   = /^[A-Z0-9^._ -]{1,20}$/;          // NSE tickers, indices (^NSEI), forex pairs
 const EXCHANGES   = new Set(['NSE', 'BSE', 'NASDAQ', 'NYSE', 'FOREX']);
 const INTERVALS   = new Set(['1m', '5m', '15m', '1h', '1d']);
 const MAX_DAYS    = 1825;                              // 5 years
