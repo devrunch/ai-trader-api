@@ -126,7 +126,7 @@ export class ChatStreamController {
     });
 
     upstreamBody.on('end', () => {
-      void this.finish(req.user.id, message, result, res);
+      void this.finish(req.user.id, message, result, res, body.newSession);
     });
 
     // The client hung up mid-turn. `end` may never fire, so this is the only
@@ -135,7 +135,7 @@ export class ChatStreamController {
       if (result || res.writableEnded) return;  // finished normally
       void this.recordCancelled(req.user.id, message, {
         turn_id: turnId, symbol, exchange, events: seen,
-      });
+      }, body.newSession);
     });
 
     upstreamBody.on('error', (err: Error) => {
@@ -166,10 +166,13 @@ export class ChatStreamController {
     question: string,
     result: UpstreamTurn | null,
     res: Response,
+    forceNewSession?: boolean,
   ): Promise<void> {
     if (result) {
       try {
-        const stored = await this.chatSessions.recordTurn(userId, question, result);
+        const stored = await this.chatSessions.recordTurn(userId, question, result, {
+          forceNewSession,
+        });
         if (stored && !res.writableEnded) {
           // The id the client needs to link a trade back to this analysis.
           res.write(frame({ kind: 'recorded', label: '', detail: { turnId: stored.turnId } }));
@@ -194,6 +197,7 @@ export class ChatStreamController {
     userId: string,
     question: string,
     partial: UpstreamTurn,
+    forceNewSession?: boolean,
   ): Promise<void> {
     if (!partial.turn_id) return;         // never started; nothing was spent
     try {
@@ -201,7 +205,7 @@ export class ChatStreamController {
         ...partial,
         message: 'Stopped before this analysis finished.',
         stop_reason: 'cancelled',
-      });
+      }, { forceNewSession });
     } catch (err) {
       this.logger.error(`Failed to record a cancelled turn: ${(err as Error)?.message}`);
     }

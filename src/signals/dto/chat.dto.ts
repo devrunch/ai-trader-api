@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -34,4 +35,11 @@ export class ChatDto {
   @IsArray()
   @ArrayMaxSize(20)
   history?: unknown[];
+
+  /** The "reset chat" button — starts a fresh conversation instead of
+   * continuing whatever session this symbol's turns would otherwise fall
+   * into (see ChatSessionsService.resolveSessionId's 2-hour gap rule). */
+  @IsOptional()
+  @IsBoolean()
+  newSession?: boolean;
 }

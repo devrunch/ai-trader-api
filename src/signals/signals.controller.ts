@@ -84,7 +84,9 @@ export class SignalsController {
     // been paid for, and a failed write is our problem, not theirs.
     let turnId: string | undefined;
     try {
-      const stored = await this.chatSessions.recordTurn(req.user.id, message, result);
+      const stored = await this.chatSessions.recordTurn(req.user.id, message, result, {
+        forceNewSession: body.newSession,
+      });
       turnId = stored?.turnId;
     } catch (err) {
       this.logger.error(

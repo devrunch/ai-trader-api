@@ -81,6 +81,7 @@ export class ChatSessionsService {
     userId: string,
     question: string,
     result: UpstreamTurn,
+    options?: { forceNewSession?: boolean },
   ): Promise<ChatTurnDocument | null> {
     const turnId = result?.turn_id;
     if (!turnId) {
@@ -89,7 +90,7 @@ export class ChatSessionsService {
     }
 
     const symbol = (result.symbol ?? '').toUpperCase();
-    const sessionId = await this.resolveSessionId(userId, symbol);
+    const sessionId = await this.resolveSessionId(userId, symbol, options?.forceNewSession);
 
     return this.turnModel.findOneAndUpdate(
       { turnId },
@@ -117,7 +118,13 @@ export class ChatSessionsService {
    * Assigned server-side from the authenticated user: a client-supplied session
    * id would let one user append turns to another user's conversation.
    */
-  private async resolveSessionId(userId: string, symbol: string): Promise<string> {
+  private async resolveSessionId(
+    userId: string,
+    symbol: string,
+    forceNew = false,
+  ): Promise<string> {
+    if (forceNew) return randomUUID();
+
     const previous = await this.turnModel
       .findOne({ userId, symbol })
       .sort({ createdAt: -1 })

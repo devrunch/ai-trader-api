@@ -181,6 +181,31 @@ describe('ChatSessionsService.recordTurn', () => {
     expect(f.model.docs[0].sessionId).not.toBe(f.model.docs[1].sessionId);
   });
 
+  it('starts a new conversation immediately when forceNewSession is set, even seconds later', async () => {
+    const f = setup();
+    await f.service.recordTurn('u1', 'first', turn({ turn_id: 't1' }));
+    f.model.advance(1); // real requests are never within the same millisecond
+    await f.service.recordTurn('u1', 'new chat', turn({ turn_id: 't2' }), {
+      forceNewSession: true,
+    });
+
+    expect(f.model.docs[0].sessionId).not.toBe(f.model.docs[1].sessionId);
+  });
+
+  it('a turn right after a forced new session still continues THAT session normally', async () => {
+    const f = setup();
+    await f.service.recordTurn('u1', 'first', turn({ turn_id: 't1' }));
+    f.model.advance(1);
+    await f.service.recordTurn('u1', 'new chat', turn({ turn_id: 't2' }), {
+      forceNewSession: true,
+    });
+    f.model.advance(1);
+    await f.service.recordTurn('u1', 'follow-up', turn({ turn_id: 't3' }));
+
+    expect(f.model.docs[1].sessionId).toBe(f.model.docs[2].sessionId);
+    expect(f.model.docs[0].sessionId).not.toBe(f.model.docs[1].sessionId);
+  });
+
   it('keeps different symbols in different conversations', async () => {
     const f = setup();
     await f.service.recordTurn('u1', 'q', turn({ turn_id: 't1', symbol: 'RELIANCE' }));
