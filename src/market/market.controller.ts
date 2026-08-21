@@ -12,8 +12,10 @@ import { MarketService } from './market.service';
 
 /* ── Allowlists ── */
 const EXCHANGES   = new Set(['NSE', 'BSE', 'NASDAQ', 'NYSE', 'FOREX']);
-const INTERVALS   = new Set(['1m', '5m', '15m', '1h', '1d']);
-const MAX_DAYS    = 1825;                              // 5 years
+const INTERVALS   = new Set(['1m', '5m', '15m', '30m', '1h', '1d']);
+// "All" requests 3650 (10y) daily bars -- signals/Kite already serves that
+// fine (confirmed against the real API), this gate was just stale at 5y.
+const MAX_DAYS    = 3650;                              // 10 years
 const MAX_LIMIT   = 30;
 
 function validSymbol(s: string): string {
