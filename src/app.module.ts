@@ -16,6 +16,7 @@ import { BriefModule } from './brief/brief.module';
 import { ChatModule } from './chat/chat.module';
 import { ChartLayoutsModule } from './chart-layouts/chart-layouts.module';
 import { AdminModule } from './admin/admin.module';
+import { PineModule } from './pine/pine.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -48,6 +49,7 @@ import { envValidationSchema } from './config/env.validation';
     ChatModule,
     ChartLayoutsModule,
     AdminModule,
+    PineModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
