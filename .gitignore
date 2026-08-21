@@ -7,3 +7,5 @@ coverage/
 
 # TypeScript incremental build cache — machine-local, not source.
 *.tsbuildinfo
+
+.worktrees/
