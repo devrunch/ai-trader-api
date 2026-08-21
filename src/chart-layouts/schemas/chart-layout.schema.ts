@@ -4,12 +4,35 @@ import { Document } from 'mongoose';
 export type ChartLayoutDocument = ChartLayout & Document;
 
 /**
+ * A single attached Pine indicator. There is no fixed catalog to look a name
+ * up in under the PineTS model (see the migration spec's "Saved-layout
+ * schema change") — the source IS the indicator, stored verbatim, exactly
+ * like `drawings` below is already opaque by design.
+ */
+@Schema({ _id: false })
+export class AttachedIndicator {
+  @Prop({ required: true })
+  id: string;
+
+  @Prop({ required: true })
+  source: string;
+
+  @Prop({ required: true })
+  label: string;
+
+  @Prop({ required: true, enum: ['main', 'sub'] })
+  pane: 'main' | 'sub';
+}
+
+export const AttachedIndicatorSchema = SchemaFactory.createForClass(AttachedIndicator);
+
+/**
  * What the user has on their chart for one symbol: their own drawings, the
  * agent's, and which indicators are showing.
  *
- * All of it used to live in KLineChart's memory and nowhere else, so a reload
- * wiped a trend line the user had spent a minute placing — and every mark the
- * agent had put there to explain its answer.
+ * All of it used to live in the chart library's memory and nowhere else, so
+ * a reload wiped a trend line the user had spent a minute placing — and
+ * every mark the agent had put there to explain its answer.
  *
  * One document per user and symbol, replaced wholesale on save. A chart is
  * small and is always read and written as a unit, so there is nothing to gain
@@ -27,17 +50,19 @@ export class ChartLayout {
   exchange: string;
 
   /**
-   * Overlays, in the shape KLineChart creates them: `{ name, points, styles }`.
-   * Stored as opaque objects — this service does not interpret drawings, and
-   * validating a chart library's overlay format here would only mean two
-   * definitions of it drifting apart.
+   * Overlays, in the rendering adapter's own shape (`format` names which
+   * one — e.g. "lightweight-charts"). Stored as opaque objects — this
+   * service does not interpret drawings, and validating a chart library's
+   * overlay format here would only mean two definitions of it drifting
+   * apart. The `format` tag exists so a *future* rendering-library swap can
+   * tell which shape a stored record uses without another schema cutover.
    */
   @Prop({ type: [Object], default: [] })
   drawings: Record<string, unknown>[];
 
-  /** Indicator names currently shown, e.g. ["EMA", "VOL"]. */
-  @Prop({ type: [String], default: [] })
-  indicators: string[];
+  /** Indicators currently attached — Pine source, not a catalog name. */
+  @Prop({ type: [AttachedIndicatorSchema], default: [] })
+  indicators: AttachedIndicator[];
 
   /**
    * Incremented on every save.

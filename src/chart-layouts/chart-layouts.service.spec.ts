@@ -62,10 +62,14 @@ function setup() {
   return { model, service: new ChartLayoutsService(model as never) };
 }
 
+/** A minimal but real AttachedIndicator -- source is what the Pine model
+ *  actually stores, not a catalog name. */
+const pine = (label: string) => ({ id: label.toLowerCase(), source: `plot(close) // ${label}`, label, pane: 'main' as const });
+
 const layout = (over: Doc = {}) => ({
   exchange: 'NSE',
   drawings: [{ name: 'segment', points: [{ timestamp: 1, value: 100 }] }],
-  indicators: ['EMA', 'VOL'],
+  indicators: [pine('EMA'), pine('VOL')],
   ...over,
 });
 
@@ -84,16 +88,16 @@ describe('ChartLayoutsService', () => {
 
     expect(saved.version).toBe(1);
     expect(saved.drawings).toHaveLength(1);
-    expect(saved.indicators).toEqual(['EMA', 'VOL']);
+    expect(saved.indicators).toEqual([pine('EMA'), pine('VOL')]);
   });
 
   it('accepts the next save from the tab that is up to date', async () => {
     const f = setup();
     const first = await f.service.save('u1', 'RELIANCE', layout());
-    const second = await f.service.save('u1', 'RELIANCE', layout({ version: first.version, indicators: ['MACD'] }));
+    const second = await f.service.save('u1', 'RELIANCE', layout({ version: first.version, indicators: [pine('MACD')] }));
 
     expect(second.version).toBe(2);
-    expect(second.indicators).toEqual(['MACD']);
+    expect(second.indicators).toEqual([pine('MACD')]);
   });
 
   it('refuses a save from a tab whose copy is stale', async () => {
@@ -103,7 +107,7 @@ describe('ChartLayoutsService', () => {
 
     // The second tab still believes it holds version 1.
     await expect(
-      f.service.save('u1', 'RELIANCE', layout({ version: 1, indicators: ['BOLL'] })),
+      f.service.save('u1', 'RELIANCE', layout({ version: 1, indicators: [pine('BOLL')] })),
     ).rejects.toBeInstanceOf(ConflictException);
 
     // And the newer drawings survive.

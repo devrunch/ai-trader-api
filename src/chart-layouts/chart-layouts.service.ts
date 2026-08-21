@@ -2,13 +2,13 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SaveLayoutDto } from './dto/save-layout.dto';
-import { ChartLayout, ChartLayoutDocument } from './schemas/chart-layout.schema';
+import { AttachedIndicator, ChartLayout, ChartLayoutDocument } from './schemas/chart-layout.schema';
 
 export interface LayoutView {
   symbol: string;
   exchange: string;
   drawings: Record<string, unknown>[];
-  indicators: string[];
+  indicators: AttachedIndicator[];
   version: number;
   updatedAt: Date | null;
 }
