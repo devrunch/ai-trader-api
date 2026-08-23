@@ -15,6 +15,7 @@ describe('SYMBOL_RE', () => {
     expect(SYMBOL_RE.test('BSE SENSEX SIXTY 65:35')).toBe(true); // :
     expect(SYMBOL_RE.test('^NSEI')).toBe(true); // ^ -- yfinance's index convention, a different provider
     expect(SYMBOL_RE.test('^BSESN')).toBe(true);
+    expect(SYMBOL_RE.test('GOLD1!')).toBe(true); // ! -- MCX continuous-contract convention (TradingView's own)
   });
 
   it('accepts every real symbol length, up to the longest one seen live', () => {

@@ -33,4 +33,10 @@ describe('normaliseChatRequest', () => {
   it('still rejects an invalid symbol', () => {
     expect(() => normaliseChatRequest(dto({ symbol: 'DROP TABLE;' }))).toThrow(BadRequestException);
   });
+
+  it('accepts a chat request about an MCX continuous contract', () => {
+    const result = normaliseChatRequest(dto({ symbol: 'gold1!', exchange: 'mcx' }));
+    expect(result.symbol).toBe('GOLD1!');
+    expect(result.exchange).toBe('MCX');
+  });
 });

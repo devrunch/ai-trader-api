@@ -29,8 +29,17 @@
  * index convention (^NSEI, ^BSESN), a different data source with a
  * different symbol format that also flows through this same validation.
  *
+ * `!` is also not a real Kite tradingsymbol character — it's the marker for
+ * an MCX continuous-contract symbol ("GOLD1!"), TradingView's own
+ * convention (confirmed live against tradingview.com) for "whichever real
+ * dated contract is currently front-month", adopted rather than invented
+ * (see kite_provider.py's own _CONTINUOUS_SUFFIX). This synthetic symbol
+ * never reaches Kite's real API directly — KiteProvider resolves it to a
+ * real tradingsymbol first — but it still has to pass this shared
+ * validation on the way in.
+ *
  * Re-verify this against a fresh instrument dump if a new symbol 400s here
  * again — that means the real data grew a character or length this
  * inventory doesn't cover yet, not that the symbol is actually invalid.
  */
-export const SYMBOL_RE = /^[A-Z0-9^&:. -]{1,40}$/;
+export const SYMBOL_RE = /^[A-Z0-9^&:.! -]{1,40}$/;
