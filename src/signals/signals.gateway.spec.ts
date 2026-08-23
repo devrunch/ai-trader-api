@@ -253,3 +253,75 @@ describe('SignalsGateway live-tick subscriptions', () => {
     expect(redisClient.disconnect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('SignalsGateway chart_state', () => {
+  function setup() {
+    const jwt = { verifyAsync: jest.fn() } as any;
+    const redisClient = { subscribe: jest.fn().mockResolvedValue(undefined), on: jest.fn(), publish: jest.fn(), disconnect: jest.fn() };
+    const httpClient = { request: jest.fn().mockResolvedValue(undefined) };
+    const gateway = new SignalsGateway(jwt, redisClient as any, httpClient as any);
+    return { gateway };
+  }
+
+  it('stores what the socket reports, scoped to the socket\'s own verified userId', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), { userId: 'u1' });
+
+    gateway.handleChartState(client, { interval: '5m', indicators: [{ id: 'ind1' }] });
+
+    expect(gateway.getChartState('u1')).toEqual({ interval: '5m', indicators: [{ id: 'ind1' }] });
+  });
+
+  it('a later event replaces the earlier one, it does not merge', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), { userId: 'u1' });
+
+    gateway.handleChartState(client, { interval: '1m', indicators: [{ id: 'a' }] });
+    gateway.handleChartState(client, { interval: '1d', indicators: [{ id: 'b' }] });
+
+    expect(gateway.getChartState('u1')).toEqual({ interval: '1d', indicators: [{ id: 'b' }] });
+  });
+
+  it('cannot update another user\'s stored state -- the room/userId always comes from the socket, never the payload', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), { userId: 'u1' });
+
+    // Even if a payload somehow carried a userId field, handleChartState's
+    // signature only reads interval/indicators from it -- there is no way
+    // to target another user's stored state through this event.
+    gateway.handleChartState(client, { interval: '5m', indicators: [] } as any);
+
+    expect(gateway.getChartState('u2')).toBeUndefined();
+  });
+
+  it('does nothing for a socket with no verified userId, rather than throwing', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), {});
+
+    expect(() => gateway.handleChartState(client, { interval: '5m', indicators: [] })).not.toThrow();
+  });
+
+  it('caps indicators at the server-side limit regardless of what a client sends', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), { userId: 'u1' });
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `ind${i}` }));
+
+    gateway.handleChartState(client, { interval: '5m', indicators: many });
+
+    expect(gateway.getChartState('u1')!.indicators).toHaveLength(20);
+  });
+
+  it('returns undefined for a user who has never connected the socket', () => {
+    const { gateway } = setup();
+    expect(gateway.getChartState('never-connected')).toBeUndefined();
+  });
+
+  it('a non-array indicators field is treated as empty, not a crash', () => {
+    const { gateway } = setup();
+    const client = fakeSocket('s1', new Map(), { userId: 'u1' });
+
+    gateway.handleChartState(client, { interval: '5m', indicators: 'not-an-array' as any });
+
+    expect(gateway.getChartState('u1')).toEqual({ interval: '5m', indicators: [] });
+  });
+});

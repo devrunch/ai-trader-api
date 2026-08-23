@@ -11,6 +11,12 @@ export interface ChatUpstreamPayload {
   message: string;
   history: unknown[];
   user_id: string;
+  // What SignalsGateway last heard from the browser over the chart_state
+  // socket event -- lets the chat agent's chart_indicators tools see and
+  // change what's actually attached. Undefined when the user hasn't
+  // connected the socket this session, or their client is too old to emit
+  // it; the Python side treats that as "nothing attached", not an error.
+  chart_state?: { interval?: string; indicators: unknown[] };
 }
 
 /** snake_case on the wire — the signals service is Python and speaks its own convention. */

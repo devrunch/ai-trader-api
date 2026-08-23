@@ -14,6 +14,20 @@ import { Server, Socket } from 'socket.io';
 import Redis from 'ioredis';
 import { UpstreamHttpClient } from '../common/http/upstream-http.client';
 
+/** What the browser reports over the chart_state event -- the frontend's
+ *  own AttachedIndicator shape, opaque here (this gateway never interprets
+ *  an entry, only relays the whole thing to the chat agent). */
+export interface ChartState {
+  interval?: string;
+  indicators: unknown[];
+}
+
+/** Bound the payload a client can push -- the chart-layouts DTO caps
+ *  indicators at 20 for the same reason (a runaway client must not grow
+ *  server-side state without limit); this is in-memory per user rather
+ *  than a database row, so the bound matters just as much. */
+const MAX_CHART_STATE_INDICATORS = 20;
+
 /** Minimal cookie-header parser — avoids pulling a dependency for one field. */
 function parseCookies(header?: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -60,6 +74,14 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect,
   // so a disconnect can decrement correctly without relying on Socket.IO's own
   // room state, which may already be cleared by the time the disconnect event fires.
   private readonly clientWatching = new Map<string, Map<string, string>>();
+  // key: userId -> what the browser last reported attached to the chart
+  // (interval + the AttachedIndicator array, opaque here same as `drawings`
+  // in ChartLayout — this gateway never interprets it, only relays it to the
+  // chat agent so its chart_indicators tools have real data instead of none
+  // at all). Kept across a brief disconnect/reconnect rather than cleared —
+  // a network blip should not make the agent forget what's on the chart a
+  // few seconds later.
+  private readonly chartStateByUser = new Map<string, ChartState>();
 
   constructor(
     private readonly jwt: JwtService,
@@ -153,6 +175,34 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect,
     if (count === 1) {
       this.callInternal('subscribe', symbol, exchange);
     }
+  }
+
+  /**
+   * The frontend's real-time report of what's attached to the chart --
+   * emitted whenever the user's own indicators state changes, and once on
+   * connect. `client.data.userId` comes from the verified JWT set in
+   * handleConnection, never from the payload -- a chart_state event can
+   * only ever update the sending user's own state.
+   */
+  @SubscribeMessage('chart_state')
+  handleChartState(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { interval?: string; indicators?: unknown[] },
+  ) {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return; // handleConnection already rejects any socket without one
+    const indicators = Array.isArray(data?.indicators)
+      ? data.indicators.slice(0, MAX_CHART_STATE_INDICATORS)
+      : [];
+    this.chartStateByUser.set(userId, { interval: data?.interval, indicators });
+  }
+
+  /** What the chat controllers read before forwarding a turn upstream --
+   *  see ChatStreamController/SignalsController. Undefined for a user who
+   *  hasn't connected this session, or whose client is too old to emit
+   *  chart_state; callers treat that as "nothing attached", not an error. */
+  getChartState(userId: string): ChartState | undefined {
+    return this.chartStateByUser.get(userId);
   }
 
   @SubscribeMessage('unsubscribe_symbol')

@@ -8,6 +8,7 @@ import { ChatSessionsService, UpstreamTurn } from '../chat/chat-sessions.service
 import { SseFrames, dataOf, frame } from '../common/http/sse';
 import { ChatDto } from './dto/chat.dto';
 import { normaliseChatRequest } from './chat-request';
+import { SignalsGateway } from './signals.gateway';
 import { SignalsUpstreamClient } from './signals-upstream.client';
 
 interface AuthRequest extends Request {
@@ -36,6 +37,7 @@ export class ChatStreamController {
     private readonly upstream: SignalsUpstreamClient,
     private readonly chatSessions: ChatSessionsService,
     private readonly chatBudget: ChatBudgetService,
+    private readonly gateway: SignalsGateway,
   ) {}
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -76,6 +78,7 @@ export class ChatStreamController {
           // From the verified JWT, never the body — the agent's view of the
           // account is scoped to the authenticated user only.
           user_id: req.user.id,
+          chart_state: this.gateway.getChartState(req.user.id),
         },
         abort.signal,
       );

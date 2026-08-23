@@ -4,6 +4,7 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatBudgetService } from '../chat/chat-budget.service';
 import { ChatSessionsService, UpstreamTurn } from '../chat/chat-sessions.service';
+import { SignalsGateway } from './signals.gateway';
 import { SignalsService } from './signals.service';
 import { SignalsUpstreamClient } from './signals-upstream.client';
 import { ChatDto } from './dto/chat.dto';
@@ -31,6 +32,7 @@ export class SignalsController {
     private readonly upstream: SignalsUpstreamClient,
     private readonly chatSessions: ChatSessionsService,
     private readonly chatBudget: ChatBudgetService,
+    private readonly gateway: SignalsGateway,
   ) {}
 
   @Get()
@@ -78,6 +80,7 @@ export class SignalsController {
       message,
       history,
       user_id: req.user.id,
+      chart_state: this.gateway.getChartState(req.user.id),
     })) as UpstreamTurn;
 
     // Recording must never cost the user their answer: the turn has already
