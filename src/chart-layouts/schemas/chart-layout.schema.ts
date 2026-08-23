@@ -22,6 +22,13 @@ export class AttachedIndicator {
 
   @Prop({ required: true, enum: ['main', 'sub'] })
   pane: 'main' | 'sub';
+
+  /** User overrides for this script's own input.*() declarations, keyed by
+   *  varId -- TradingView-style per-instance settings. Untyped like
+   *  `drawings` above: values are a script-defined mix of int/float/bool/
+   *  string/color, and this service never interprets them, only stores. */
+  @Prop({ type: Object, required: false })
+  params?: Record<string, unknown>;
 }
 
 export const AttachedIndicatorSchema = SchemaFactory.createForClass(AttachedIndicator);

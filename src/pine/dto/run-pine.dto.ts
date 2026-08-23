@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** Matches PineTS's own documented ceiling on candles per run -- anything
  * beyond that isn't meaningfully more useful and just costs more sandbox time. */
@@ -32,4 +32,11 @@ export class RunPineDto {
   @IsString()
   @MaxLength(10)
   interval?: string;
+
+  // Real PineTS input.*() overrides, keyed by the script's own variable
+  // name (varId) -- e.g. { length: 50 } for `length = input.int(100, ...)`.
+  // See ai-trader-signals/app/pine_sandbox/worker.mjs's Indicator usage.
+  @IsOptional()
+  @IsObject()
+  inputOverrides?: Record<string, unknown>;
 }

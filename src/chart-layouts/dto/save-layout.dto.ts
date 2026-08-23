@@ -4,6 +4,7 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -35,6 +36,10 @@ export class AttachedIndicatorDto {
 
   @IsIn(['main', 'sub'])
   pane: 'main' | 'sub';
+
+  @IsOptional()
+  @IsObject()
+  params?: Record<string, unknown>;
 }
 
 export class SaveLayoutDto {
