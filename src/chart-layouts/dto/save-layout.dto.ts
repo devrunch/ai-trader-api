@@ -40,6 +40,14 @@ export class AttachedIndicatorDto {
   @IsOptional()
   @IsObject()
   params?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  style?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  visibility?: { minInterval?: string; maxInterval?: string };
 }
 
 export class SaveLayoutDto {

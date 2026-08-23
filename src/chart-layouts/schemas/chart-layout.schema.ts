@@ -29,6 +29,17 @@ export class AttachedIndicator {
    *  string/color, and this service never interprets them, only stores. */
   @Prop({ type: Object, required: false })
   params?: Record<string, unknown>;
+
+  /** Per-plot color/width/visibility, keyed by plot title -- TradingView's
+   *  Style tab. Untyped for the same reason as `params`: this service never
+   *  interprets it, only stores what the frontend sends. */
+  @Prop({ type: Object, required: false })
+  style?: Record<string, unknown>;
+
+  /** TradingView's Visibility tab, scoped to this app's fixed interval set
+   *  (see ai-trader-frontend's lib/periods.ts). */
+  @Prop({ type: Object, required: false })
+  visibility?: { minInterval?: string; maxInterval?: string };
 }
 
 export const AttachedIndicatorSchema = SchemaFactory.createForClass(AttachedIndicator);
