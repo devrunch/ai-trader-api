@@ -22,7 +22,14 @@ export class PineService {
   run(dto: RunPineDto): Promise<PineRunResult> {
     return this.http.request<PineRunResult>('/signals/pine/run', {
       method: 'POST',
-      body: { source: dto.source, bars: dto.bars, mode: dto.mode ?? 'indicator' },
+      body: {
+        source: dto.source,
+        bars: dto.bars,
+        mode: dto.mode ?? 'indicator',
+        symbol: dto.symbol,
+        exchange: dto.exchange,
+        interval: dto.interval,
+      },
       // Pine execution has its own timeout inside the sandbox (5s default);
       // this just needs to outlast that plus subprocess spin-up overhead.
       timeoutMs: 10_000,

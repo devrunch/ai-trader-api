@@ -17,4 +17,19 @@ export class RunPineDto {
   @IsOptional()
   @IsIn(['indicator', 'strategy'])
   mode?: 'indicator' | 'strategy';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  symbol?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  exchange?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  interval?: string;
 }
