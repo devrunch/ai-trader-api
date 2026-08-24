@@ -10,7 +10,7 @@ export { SYMBOL_RE };
 // narrower: a paper account is denominated in rupees, so an order in a
 // dollar-priced symbol would silently mix currencies. Reading a NASDAQ chart
 // and asking the AI about it carries none of that risk.
-export const EXCHANGES = new Set(['NSE', 'BSE', 'NASDAQ', 'NYSE', 'MCX']);
+export const EXCHANGES = new Set(['NSE', 'BSE', 'NASDAQ', 'NYSE', 'MCX', 'FOREX']);
 
 export interface NormalisedChatRequest {
   symbol: string;

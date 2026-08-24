@@ -39,4 +39,10 @@ describe('normaliseChatRequest', () => {
     expect(result.symbol).toBe('GOLD1!');
     expect(result.exchange).toBe('MCX');
   });
+
+  it('accepts a chat request about a FOREX pair', () => {
+    const result = normaliseChatRequest(dto({ symbol: 'xauusd', exchange: 'forex' }));
+    expect(result.symbol).toBe('XAUUSD');
+    expect(result.exchange).toBe('FOREX');
+  });
 });
