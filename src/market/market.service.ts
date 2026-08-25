@@ -52,6 +52,18 @@ export class MarketService {
   }
 
   /**
+   * Real ECN ticks (mid price) for Volume Footprint/TPO. A real Dukascopy
+   * pull over up to 4h of ticks can run longer than the 10s default on a
+   * cold instrument, so this gets more room than the other market proxies.
+   */
+  ticks(symbol: string, params: URLSearchParams): Promise<unknown> {
+    return this.http.request(
+      `/market/ticks/${encodeURIComponent(symbol)}`,
+      { params, timeoutMs: 20_000 },
+    );
+  }
+
+  /**
    * Last traded price for one symbol. Used by the paper-trading order path,
    * which wants a tighter budget than the 10s default: a user waiting on a fill
    * should get a fast failure, not a ten-second hang.

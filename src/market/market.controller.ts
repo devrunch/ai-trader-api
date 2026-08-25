@@ -66,6 +66,30 @@ function validSince(s: string): number {
   return n;
 }
 
+// Volume Footprint/TPO only ever need whatever's currently visible on the
+// chart -- a wide window would mean a slow, expensive Dukascopy backfill on
+// every pan/zoom. Mirrors get_ticks' own MAX_TICKS_WINDOW_SECONDS on the
+// signals-repo side; `since` itself can still reach further back than that,
+// just not span more than the window from `until`.
+const MAX_TICKS_WINDOW_SECONDS = 4 * 60 * 60;
+const MAX_TICKS_LOOKBACK_SECONDS = 7 * 24 * 60 * 60;
+
+function validTicksRange(sinceStr: string, untilStr: string): { since: number; until: number } {
+  const since = parseInt(sinceStr, 10);
+  const until = parseInt(untilStr, 10);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(since) || !Number.isFinite(until)) {
+    throw new BadRequestException('since/until must be Unix-second timestamps');
+  }
+  if (since < nowSec - MAX_TICKS_LOOKBACK_SECONDS || until > nowSec + 60) {
+    throw new BadRequestException(`since/until must be within the last ${MAX_TICKS_LOOKBACK_SECONDS / 86400} days`);
+  }
+  if (until <= since || until - since > MAX_TICKS_WINDOW_SECONDS) {
+    throw new BadRequestException(`until must be after since, within ${MAX_TICKS_WINDOW_SECONDS / 3600}h`);
+  }
+  return { since, until };
+}
+
 function validSymbolList(csv: string): string[] {
   return csv.split(',').map(s => validSymbol(s));
 }
@@ -126,6 +150,17 @@ export class MarketController {
     const params = new URLSearchParams();
     params.set('since', String(validSince(since)));
     return this.market.tickVolume(validSymbol(symbol), params);
+  }
+
+  @Get('ticks/:symbol')
+  ticks(
+    @Param('symbol') symbol: string,
+    @Query('since')  since: string,
+    @Query('until')  until: string,
+  ) {
+    const range = validTicksRange(since, until);
+    const params = new URLSearchParams({ since: String(range.since), until: String(range.until) });
+    return this.market.ticks(validSymbol(symbol), params);
   }
 
   @Get('historical/:symbol')
