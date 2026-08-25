@@ -9,6 +9,7 @@ export interface LayoutView {
   exchange: string;
   drawings: Record<string, unknown>[];
   indicators: AttachedIndicator[];
+  chartType?: string;
   version: number;
   updatedAt: Date | null;
 }
@@ -40,6 +41,7 @@ export class ChartLayoutsService {
       exchange: doc.exchange,
       drawings: doc.drawings ?? [],
       indicators: doc.indicators ?? [],
+      chartType: doc.chartType,
       version: doc.version ?? 0,
       updatedAt: doc.updatedAt ?? null,
     };
@@ -64,6 +66,7 @@ export class ChartLayoutsService {
           exchange: dto.exchange.toUpperCase(),
           drawings: dto.drawings,
           indicators: dto.indicators,
+          chartType: dto.chartType,
           version: expected + 1,
         },
         $setOnInsert: key,
@@ -90,6 +93,7 @@ export class ChartLayoutsService {
       exchange: updated.exchange,
       drawings: updated.drawings ?? [],
       indicators: updated.indicators ?? [],
+      chartType: updated.chartType,
       version: updated.version,
       updatedAt: updated.updatedAt ?? null,
     };

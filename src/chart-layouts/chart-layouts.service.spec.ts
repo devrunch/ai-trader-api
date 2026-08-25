@@ -152,4 +152,14 @@ describe('ChartLayoutsService', () => {
 
     expect((await f.service.get('u2', 'RELIANCE')).drawings).toEqual([]);
   });
+
+  it('round-trips chartType, and leaves it undefined for a layout that never set one', async () => {
+    const f = setup();
+    const withoutType = await f.service.get('u1', 'RELIANCE');
+    expect(withoutType.chartType).toBeUndefined();
+
+    const saved = await f.service.save('u1', 'RELIANCE', layout({ chartType: 'line' }));
+    expect(saved.chartType).toBe('line');
+    expect((await f.service.get('u1', 'RELIANCE')).chartType).toBe('line');
+  });
 });

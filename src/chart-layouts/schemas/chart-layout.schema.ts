@@ -83,6 +83,17 @@ export class ChartLayout {
   indicators: AttachedIndicator[];
 
   /**
+   * Main pane's chart type (e.g. "candles", "line", "area") -- opaque like
+   * `drawings`, for the same reason: the set of valid ids lives in the
+   * frontend's own ChartTypeId union and grows over time, so this service
+   * never validates against a list here. Absent on any layout saved before
+   * chart-type selection existed; the frontend treats that the same as
+   * "candles" (rendererFor's own unknown-id fallback).
+   */
+  @Prop({ required: false })
+  chartType?: string;
+
+  /**
    * Incremented on every save.
    *
    * Two tabs open on the same chart will otherwise silently overwrite each

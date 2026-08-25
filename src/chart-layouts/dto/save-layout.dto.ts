@@ -55,6 +55,18 @@ export class SaveLayoutDto {
   exchange: string;
 
   /**
+   * Main pane's chart type -- untyped beyond "a short string", same
+   * reasoning as `drawings`: the real set of valid ids lives in the
+   * frontend's ChartTypeId union and grows over time, so this API doesn't
+   * duplicate that list. Omitted means "candles" (the frontend's own
+   * pre-chart-type-selection default).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  chartType?: string;
+
+  /**
    * Overlays in the rendering adapter's own shape. Deliberately untyped
    * beyond "objects": the API does not interpret drawings, and a second
    * definition of the chart library's format would drift from the real one.
