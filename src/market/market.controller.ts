@@ -49,6 +49,23 @@ function validLimit(l: string | number): number {
   return n;
 }
 
+// This endpoint exists to be cheap and frequent (polled every few seconds
+// for the still-forming candle) -- bounding `since` to the last couple of
+// days keeps a malformed or malicious request from turning it into an
+// expensive multi-day Dukascopy backfill instead.
+const MAX_TICK_VOLUME_LOOKBACK_SECONDS = 2 * 24 * 60 * 60;
+
+function validSince(s: string): number {
+  const n = parseInt(s, 10);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(n) || n < nowSec - MAX_TICK_VOLUME_LOOKBACK_SECONDS || n > nowSec) {
+    throw new BadRequestException(
+      `since must be a Unix-second timestamp within the last ${MAX_TICK_VOLUME_LOOKBACK_SECONDS / 3600}h`,
+    );
+  }
+  return n;
+}
+
 function validSymbolList(csv: string): string[] {
   return csv.split(',').map(s => validSymbol(s));
 }
@@ -99,6 +116,16 @@ export class MarketController {
     const params = new URLSearchParams();
     params.set('exchange', validExchange(exchange));
     return this.market.quote(validSymbol(symbol), params);
+  }
+
+  @Get('tick-volume/:symbol')
+  tickVolume(
+    @Param('symbol') symbol: string,
+    @Query('since')  since: string,
+  ) {
+    const params = new URLSearchParams();
+    params.set('since', String(validSince(since)));
+    return this.market.tickVolume(validSymbol(symbol), params);
   }
 
   @Get('historical/:symbol')

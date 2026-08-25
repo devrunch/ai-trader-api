@@ -39,6 +39,19 @@ export class MarketService {
   }
 
   /**
+   * Live tick-count volume for the chart's still-forming candle. Polled by
+   * the terminal every few seconds while a FOREX/metals chart is open, so a
+   * tight timeout matters more here than the 10s default -- a slow answer
+   * should just be skipped until the next poll, not held open.
+   */
+  tickVolume(symbol: string, params: URLSearchParams): Promise<unknown> {
+    return this.http.request(
+      `/market/tick-volume/${encodeURIComponent(symbol)}`,
+      { params, timeoutMs: 5_000 },
+    );
+  }
+
+  /**
    * Last traded price for one symbol. Used by the paper-trading order path,
    * which wants a tighter budget than the 10s default: a user waiting on a fill
    * should get a fast failure, not a ten-second hang.
