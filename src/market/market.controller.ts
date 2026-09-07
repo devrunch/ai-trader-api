@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SYMBOL_RE } from '../common/symbol';
+import { NewsService } from '../news/news.service';
 import { MarketService } from './market.service';
 
 /* ── Allowlists ── */
@@ -16,7 +17,6 @@ const INTERVALS   = new Set(['1m', '5m', '15m', '30m', '1h', '1d']);
 // "All" requests 3650 (10y) daily bars -- signals/Kite already serves that
 // fine (confirmed against the real API), this gate was just stale at 5y.
 const MAX_DAYS    = 3650;                              // 10 years
-const MAX_LIMIT   = 30;
 
 function validSymbol(s: string): string {
   const u = s.trim().toUpperCase();
@@ -39,13 +39,6 @@ function validDays(d: string | number): number {
   const n = typeof d === 'number' ? d : parseInt(String(d), 10);
   if (!Number.isFinite(n) || n < 1 || n > MAX_DAYS)
     throw new BadRequestException(`days must be 1–${MAX_DAYS}`);
-  return n;
-}
-
-function validLimit(l: string | number): number {
-  const n = typeof l === 'number' ? l : parseInt(String(l), 10);
-  if (!Number.isFinite(n) || n < 1 || n > MAX_LIMIT)
-    throw new BadRequestException(`limit must be 1–${MAX_LIMIT}`);
   return n;
 }
 
@@ -90,10 +83,6 @@ function validTicksRange(sinceStr: string, untilStr: string): { since: number; u
   return { since, until };
 }
 
-function validSymbolList(csv: string): string[] {
-  return csv.split(',').map(s => validSymbol(s));
-}
-
 /**
  * Validation only. Transport, timeouts, retries and upstream status mapping
  * live in `MarketService` / `UpstreamHttpClient`.
@@ -101,25 +90,25 @@ function validSymbolList(csv: string): string[] {
 @UseGuards(JwtAuthGuard)
 @Controller('market')
 export class MarketController {
-  constructor(private readonly market: MarketService) {}
+  constructor(
+    private readonly market: MarketService,
+    private readonly news: NewsService,
+  ) {}
 
   @Get('status')
   status() {
     return this.market.status();
   }
 
+  /** Reads the stored result from the signals service's run_news_analysis
+   *  pipeline (every 15 min) rather than proxying live -- the real
+   *  NewsAPI/HF/LLM work no longer runs in a user's request path. No
+   *  symbols/limit query params any more: nothing ever called this with
+   *  them (confirmed against the frontend's only two call sites), and a
+   *  precomputed singleton has no per-request scope to apply them to. */
   @Get('news')
-  news(
-    @Query('symbols') symbols?: string,
-    @Query('limit')   limit = '15',
-  ) {
-    const params = new URLSearchParams();
-    if (symbols) {
-      const validated = validSymbolList(symbols).join(',');
-      params.set('symbols', validated);
-    }
-    params.set('limit', String(validLimit(limit)));
-    return this.market.news(params);
+  latestNews() {
+    return this.news.latest();
   }
 
   @Get('search')

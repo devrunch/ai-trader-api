@@ -16,10 +16,6 @@ export class MarketService {
     return this.http.request('/market/status');
   }
 
-  news(params: URLSearchParams): Promise<unknown> {
-    return this.http.request('/market/news', { params });
-  }
-
   search(params: URLSearchParams): Promise<unknown> {
     return this.http.request('/market/search', { params });
   }
