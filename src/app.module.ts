@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MarketModule } from './market/market.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
 import { BriefModule } from './brief/brief.module';
+import { AlertsModule } from './alerts/alerts.module';
 import { ChatModule } from './chat/chat.module';
 import { ChartLayoutsModule } from './chart-layouts/chart-layouts.module';
 import { AdminModule } from './admin/admin.module';
@@ -47,6 +48,7 @@ import { envValidationSchema } from './config/env.validation';
     MarketModule,
     WatchlistModule,
     BriefModule,
+    AlertsModule,
     ChatModule,
     ChartLayoutsModule,
     AdminModule,

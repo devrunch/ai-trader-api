@@ -299,4 +299,12 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect,
     if (!this.server) return;
     this.server.to(`user:${userId}`).emit('positions_update', positions);
   }
+
+  // Called by AlertsService when the drift-check or reddit-sentiment
+  // pipeline publishes a new alert -- global, like broadcastSignal, since
+  // an alert isn't scoped to one user's watchlist.
+  broadcastAlert(alert: object) {
+    if (!this.server) return;
+    this.server.emit('alert', alert);
+  }
 }
