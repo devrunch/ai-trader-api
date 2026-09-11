@@ -25,10 +25,8 @@ function timingSafeEqualStr(expected: string, given: string): boolean {
 /**
  * Shared-secret guard for the `internal/*` controllers.
  *
- * Network isolation alone is NOT sufficient — the serverless deployment routes
- * /api/{proxy+} publicly, which would expose every internal controller. This
- * guard replaces three hand-rolled copies of the same check (one of which was
- * missing entirely) so a new internal controller cannot be added without it.
+ * Network isolation alone is not relied on: Caddy proxies all of /api publicly,
+ * which would expose every internal controller without this check.
  */
 @Injectable()
 export class InternalKeyGuard implements CanActivate {

@@ -2,9 +2,7 @@ import {
   Body,
   Controller,
   Get,
-  Param,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -23,15 +21,6 @@ export class BriefController {
     return this.brief.latest();
   }
 
-  @Get('recent')
-  recent(@Query('limit') limit?: string) {
-    return this.brief.recent(limit ? parseInt(limit) : 7);
-  }
-
-  @Get(':date')
-  byDate(@Param('date') date: string) {
-    return this.brief.byDate(date);
-  }
 }
 
 /**

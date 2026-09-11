@@ -41,9 +41,6 @@ export const envValidationSchema = Joi.object({
   // costs. See chat/chat-budget.service.ts for the default.
   CHAT_DAILY_TOKEN_CAP: Joi.number().integer().positive().optional(),
 
-  // Only the Fargate/compose deployment runs the in-process SQS poller; in the
-  // serverless deployment the dedicated sqsConsumer Lambda owns the queue.
-  SIGNALS_POLLER_ENABLED: Joi.string().valid('true', 'false').default('false'),
   SQS_SIGNALS_QUEUE_URL: Joi.string().uri().optional(),
 
   AWS_REGION: Joi.string().default('ap-south-1'),

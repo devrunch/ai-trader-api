@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CHAT_UPSTREAM_TIMEOUT_MS,
-  UpstreamHttpClient,
-} from '../common/http/upstream-http.client';
+import { UpstreamHttpClient } from '../common/http/upstream-http.client';
 import { UpstreamOutcome } from './eval';
 
 export interface ChatUpstreamPayload {
@@ -51,22 +48,10 @@ export class SignalsUpstreamClient {
     );
   }
 
-  chat(payload: ChatUpstreamPayload): Promise<unknown> {
-    // 60s — one chat turn can run several LLM round-trips, each of which may
-    // trigger market-data tool calls.
-    return this.http.request('/signals/chat', {
-      method: 'POST',
-      body: payload,
-      timeoutMs: CHAT_UPSTREAM_TIMEOUT_MS,
-    });
-  }
-
   /**
-   * The same turn as `chat`, as a live stream of progress events.
-   *
-   * The buffered call stays: it is simpler for any caller that only wants the
-   * answer. This one exists because a turn can legitimately run the better part
-   * of a minute, and a spinner for that long is indistinguishable from a hang.
+   * One chat turn as a live stream of progress events. A turn can run the
+   * better part of a minute, and a spinner for that long is indistinguishable
+   * from a hang.
    */
   chatStream(payload: ChatUpstreamPayload, signal?: AbortSignal) {
     return this.http.stream('/signals/chat/stream', { body: payload, signal });

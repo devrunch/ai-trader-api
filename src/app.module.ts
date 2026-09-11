@@ -9,7 +9,6 @@ import { AuthModule } from './auth/auth.module';
 import { BrokerModule } from './broker/broker.module';
 import { SignalsModule } from './signals/signals.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { MarketModule } from './market/market.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
 import { BriefModule } from './brief/brief.module';
@@ -45,7 +44,6 @@ import { envValidationSchema } from './config/env.validation';
     BrokerModule,
     SignalsModule,
     PortfolioModule,
-    NotificationsModule,
     MarketModule,
     WatchlistModule,
     BriefModule,

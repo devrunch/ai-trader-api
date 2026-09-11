@@ -274,8 +274,7 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect,
   // Takes `object` rather than `Record<string, unknown>` so hydrated Mongoose
   // documents can be passed without a cast at every call site.
   broadcastSignal(signal: object) {
-    // `server` is undefined until the adapter is attached — in the Lambda
-    // deployment the SQS handler runs with no listening HTTP server at all.
+    // `server` is undefined until the WebSocket adapter is attached.
     if (!this.server) return;
 
     // Broadcast to all clients

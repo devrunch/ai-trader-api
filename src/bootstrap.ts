@@ -3,11 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import * as express from 'express';
 
-/**
- * Everything that must be identical between `main.ts` (Fargate/local) and
- * `lambda.ts` (serverless). They had drifted apart before; a single function
- * makes divergence impossible.
- */
+/** App-wide middleware, prefix, versioning and validation, applied at boot. */
 export function configureApp(app: INestApplication): void {
   // Express's own default body limit is 100kb -- fine for almost every route
   // here, but /api/pine/run's body IS the chart's OHLCV bars, and a 1-minute

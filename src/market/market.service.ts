@@ -12,10 +12,6 @@ import { UpstreamHttpClient } from '../common/http/upstream-http.client';
 export class MarketService {
   constructor(private readonly http: UpstreamHttpClient) {}
 
-  status(): Promise<unknown> {
-    return this.http.request('/market/status');
-  }
-
   search(params: URLSearchParams): Promise<unknown> {
     return this.http.request('/market/search', { params });
   }

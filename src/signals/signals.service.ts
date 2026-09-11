@@ -38,19 +38,6 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    // Explicit opt-in. Inferring "should I poll?" from SQS_SIGNALS_QUEUE_URL
-    // being set meant the API Lambda — which boots the full AppModule for the
-    // HTTP handler — started a second consumer alongside the dedicated
-    // sqsConsumer Lambda on the same queue. Two consumers, plus a background
-    // poller that freezes the moment the HTTP response is returned, produced
-    // 30s-invisible messages, redelivery, and duplicate documents.
-    if (this.config.get<string>('SIGNALS_POLLER_ENABLED') !== 'true') {
-      this.logger.log(
-        'SQS signal poller disabled (set SIGNALS_POLLER_ENABLED=true to enable — Fargate/compose only)',
-      );
-      return;
-    }
-
     this.queueUrl = this.config.get<string>('SQS_SIGNALS_QUEUE_URL') ?? '';
     if (!this.queueUrl) {
       this.logger.warn('SQS_SIGNALS_QUEUE_URL not set — signal polling disabled');
@@ -199,18 +186,6 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Failed to process signal message', err);
       // message becomes visible again after VisibilityTimeout — automatic retry
     }
-  }
-
-  // Called by the SQS Lambda handler (sqsHandler in lambda.ts)
-  async saveFromQueue(data: SignalMessage) {
-    // Same mapper, same idempotency and — unlike before — the same broadcast.
-    // In the serverless deployment this is the ONLY consumer, so skipping the
-    // broadcast here meant new signals silently never reached WebSocket clients.
-    const signal = await this.persistSignal(data);
-    if (signal) {
-      this.logger.log(`Signal saved via SQS Lambda: ${signal.symbol} ${signal.direction}`);
-    }
-    return signal;
   }
 
   async getRecentSignals(limit = 50) {

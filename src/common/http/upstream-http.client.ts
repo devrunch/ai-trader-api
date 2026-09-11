@@ -10,8 +10,6 @@ import { Readable } from 'node:stream';
 
 /** 10s for ordinary market proxies. */
 export const DEFAULT_UPSTREAM_TIMEOUT_MS = 10_000;
-/** 60s for the chat agent — one turn can run several LLM round-trips. */
-export const CHAT_UPSTREAM_TIMEOUT_MS = 60_000;
 
 export interface UpstreamRequestOptions {
   method?: 'GET' | 'POST';

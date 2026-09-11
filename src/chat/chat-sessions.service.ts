@@ -32,17 +32,6 @@ export interface UpstreamTurn {
   stop_reason?: string | null;
 }
 
-export interface SessionSummary {
-  sessionId: string;
-  symbol: string;
-  exchange: string;
-  turns: number;
-  startedAt: Date;
-  lastTurnAt: Date;
-  /** The opening question — what the conversation is recognisably about. */
-  title: string;
-}
-
 /** One backtest the agent ran, lifted out of the turn that ran it. */
 export interface StrategyRun {
   turnId: string;
@@ -140,29 +129,6 @@ export class ChatSessionsService {
   // ------------------------------------------------------------------
   // Reading
   // ------------------------------------------------------------------
-
-  /** A user's conversations, most recently active first. */
-  async listSessions(userId: string, limit = 30): Promise<SessionSummary[]> {
-    const rows = await this.turnModel.aggregate<SessionSummary>([
-      { $match: { userId } },
-      { $sort: { createdAt: 1 } },
-      {
-        $group: {
-          _id: '$sessionId',
-          symbol: { $first: '$symbol' },
-          exchange: { $first: '$exchange' },
-          title: { $first: '$message' },
-          startedAt: { $first: '$createdAt' },
-          lastTurnAt: { $last: '$createdAt' },
-          turns: { $sum: 1 },
-        },
-      },
-      { $sort: { lastTurnAt: -1 } },
-      { $limit: Math.min(Math.max(limit, 1), 100) },
-      { $project: { _id: 0, sessionId: '$_id', symbol: 1, exchange: 1, title: 1, startedAt: 1, lastTurnAt: 1, turns: 1 } },
-    ]);
-    return rows;
-  }
 
   /**
    * Every turn in one conversation, oldest first — the transcript.

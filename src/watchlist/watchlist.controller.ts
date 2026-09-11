@@ -30,11 +30,7 @@ export class WatchlistController {
   }
 }
 
-/**
- * Internal, service-to-service only. Network isolation alone is NOT sufficient —
- * the serverless deployment routes /api/{proxy+} publicly, which would expose
- * this. Gated by the same shared secret as the other internal controllers.
- */
+/** Internal, service-to-service only — gated by the shared-secret guard. */
 @SkipThrottle()
 @UseGuards(InternalKeyGuard)
 @Controller('internal/watchlist')

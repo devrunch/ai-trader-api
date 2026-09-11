@@ -1,7 +1,6 @@
 import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ChatBudgetService } from './chat-budget.service';
 import { ChatSessionsService } from './chat-sessions.service';
 
 interface AuthRequest extends Request {
@@ -22,43 +21,12 @@ const parseLimit = (raw: string | undefined, fallback: number): number => {
 @UseGuards(JwtAuthGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(
-    private readonly sessions: ChatSessionsService,
-    private readonly budget: ChatBudgetService,
-  ) {}
+  constructor(private readonly sessions: ChatSessionsService) {}
 
-  /**
-   * Today's analysis spend.
-   *
-   * Exposed so the UI can warn on approach rather than only report the wall
-   * after the user has hit it.
-   */
-  @Get('budget')
-  budgetToday(@Req() req: AuthRequest) {
-    return this.budget.spentToday(req.user.id);
-  }
-
-  /** The user's conversations, most recently active first. */
-  @Get('sessions')
-  listSessions(@Req() req: AuthRequest, @Query('limit') limit?: string) {
-    return this.sessions.listSessions(req.user.id, parseLimit(limit, 30));
-  }
-
-  /**
-   * The conversation the terminal should reload for a symbol.
-   *
-   * Declared before `sessions/:sessionId` — Nest matches routes in order, and a
-   * later literal segment would otherwise be swallowed by the parameter.
-   */
+  /** The conversation the terminal should reload for a symbol. */
   @Get('sessions/latest/:symbol')
   latestForSymbol(@Req() req: AuthRequest, @Param('symbol') symbol: string) {
     return this.sessions.getLatestForSymbol(req.user.id, symbol);
-  }
-
-  /** One conversation in full, oldest turn first. */
-  @Get('sessions/:sessionId')
-  getSession(@Req() req: AuthRequest, @Param('sessionId') sessionId: string) {
-    return this.sessions.getSession(req.user.id, sessionId);
   }
 
   /** One turn — the record behind "why was this trade taken". */

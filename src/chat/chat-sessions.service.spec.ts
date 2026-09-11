@@ -284,17 +284,6 @@ describe('ChatSessionsService reading', () => {
     expect(runs[0].askedFor).toBe('backtest an RSI cross');
     expect(runs[0].detail.trades).toEqual([{ pnl_pct: 1.2 }]);
   });
-
-  it('summarises a conversation by its opening question', async () => {
-    const f = setup();
-    await f.service.recordTurn('u1', 'where is support?', turn({ turn_id: 't1' }));
-    f.model.advance(60_000);
-    await f.service.recordTurn('u1', 'and resistance?', turn({ turn_id: 't2' }));
-
-    const [session] = await f.service.listSessions('u1');
-    expect(session.turns).toBe(2);
-    expect(session.title).toBe('where is support?');
-  });
 });
 
 describe('capEvents', () => {

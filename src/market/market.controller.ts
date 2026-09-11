@@ -95,11 +95,6 @@ export class MarketController {
     private readonly news: NewsService,
   ) {}
 
-  @Get('status')
-  status() {
-    return this.market.status();
-  }
-
   /** Reads the stored result from the signals service's run_news_analysis
    *  pipeline (every 15 min) rather than proxying live -- the real
    *  NewsAPI/HF/LLM work no longer runs in a user's request path. No

@@ -39,19 +39,4 @@ export class BriefService {
     if (!doc) throw new NotFoundException('No morning brief has been generated yet');
     return doc;
   }
-
-  async byDate(date: string) {
-    const doc = await this.briefModel.findOne({ date }).lean();
-    if (!doc) throw new NotFoundException(`No morning brief for ${date}`);
-    return doc;
-  }
-
-  async recent(limit = 7) {
-    return this.briefModel
-      .find()
-      .sort({ date: -1 })
-      .limit(limit)
-      .select('date generatedAt marketRead narrative')
-      .lean();
-  }
 }
