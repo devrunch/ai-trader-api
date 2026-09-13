@@ -31,6 +31,6 @@ export class StoreNewsResultDto {
   // and skips IsIn -- exactly what's wanted here, since the producer sends
   // an explicit `null` for "nothing degraded" rather than omitting the key.
   @IsOptional()
-  @IsIn(['news_unavailable', 'sentiment_unavailable', 'impact_unavailable', 'sentiment_and_impact_unavailable'])
+  @IsIn(['news_unavailable', 'impact_unavailable'])
   degraded_reason: string | null;
 }
