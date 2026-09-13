@@ -150,12 +150,15 @@ export class MarketController {
   @Get('historical/:symbol')
   historical(
     @Param('symbol')   symbol: string,
-    @Query('exchange') exchange  = 'NSE',
     @Query('interval') interval  = '15m',
     @Query('days')     days      = '30',
+    // No default: upstream resolves a symbol's venue itself, and a wrong
+    // guess used to send the request nowhere (XAUUSD, asked for on NSE).
+    // Passed through only to disambiguate a dual listing.
+    @Query('exchange') exchange?: string,
   ) {
     const params = new URLSearchParams();
-    params.set('exchange', validExchange(exchange));
+    if (exchange) params.set('exchange', validExchange(exchange));
     params.set('interval', validInterval(interval));
     params.set('days',     String(validDays(days)));
     return this.market.historical(validSymbol(symbol), params);

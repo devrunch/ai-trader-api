@@ -87,20 +87,37 @@ export class UpstreamHttpClient {
 
       if (res.ok) return (await res.json()) as T;
 
+      // Upstream says *why* in the body -- a machine-readable `status` plus a
+      // reason safe to show. Dropping it here would leave the browser with a
+      // bare code and nothing to tell the user.
+      const detail = await this.upstreamDetail(res);
+
       if (res.status === 404) {
-        throw new NotFoundException(`Upstream resource not found: ${path}`);
+        throw new NotFoundException(detail ?? `Upstream resource not found: ${path}`);
       }
       if (res.status >= 500) {
         throw new ServiceUnavailableException(
-          `Signals service unavailable (upstream ${res.status})`,
+          detail ?? `Signals service unavailable (upstream ${res.status})`,
         );
       }
-      throw new BadRequestException(`Upstream ${res.status}`);
+      throw new BadRequestException(detail ?? `Upstream ${res.status}`);
     }
 
     throw new ServiceUnavailableException(
       `Signals service unreachable: ${(lastNetworkError as Error)?.message ?? 'network error'}`,
     );
+  }
+
+  /** The upstream error body, when it sent one worth forwarding. */
+  private async upstreamDetail(
+    res: Awaited<ReturnType<typeof fetch>>,
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      const body = (await res.json()) as Record<string, unknown>;
+      return body && (body.status || body.reason || body.detail) ? body : null;
+    } catch {
+      return null;   // not JSON, or already consumed: the code alone will do
+    }
   }
 
   /**
