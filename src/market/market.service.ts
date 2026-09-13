@@ -38,19 +38,6 @@ export class MarketService {
   }
 
   /**
-   * Live tick-count volume for the chart's still-forming candle. Polled by
-   * the terminal every few seconds while a FOREX/metals chart is open, so a
-   * tight timeout matters more here than the 10s default -- a slow answer
-   * should just be skipped until the next poll, not held open.
-   */
-  tickVolume(symbol: string, params: URLSearchParams): Promise<unknown> {
-    return this.http.request(
-      `/market/tick-volume/${encodeURIComponent(symbol)}`,
-      { params, timeoutMs: 5_000 },
-    );
-  }
-
-  /**
    * Real ECN ticks (mid price) for Volume Footprint/TPO. A real Dukascopy
    * pull over up to 4h of ticks can run longer than the 10s default on a
    * cold instrument, so this gets more room than the other market proxies.
