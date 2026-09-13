@@ -23,10 +23,17 @@ export class MarketService {
     );
   }
 
+  /**
+   * A cold multi-window fetch does not fit the 10s default. Forex history
+   * comes from a vendor that will only serve 1000 bars per request, so five
+   * days of 1m bars is eight upstream round trips plus the tick-volume pass
+   * -- measured at ~7s warm on the production box, where the default timeout
+   * turned every 1m gold chart into a 503 while 15m and 1d worked.
+   */
   historical(symbol: string, params: URLSearchParams): Promise<unknown> {
     return this.http.request(
       `/market/historical/${encodeURIComponent(symbol)}`,
-      { params },
+      { params, timeoutMs: 25_000 },
     );
   }
 
