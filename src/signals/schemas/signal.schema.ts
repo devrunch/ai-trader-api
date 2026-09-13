@@ -49,9 +49,8 @@ export class Signal {
 export const SignalSchema = SchemaFactory.createForClass(Signal);
 SignalSchema.index({ symbol: 1, createdAt: -1 });
 
-// Idempotency key. SQS delivers at-least-once and, depending on the deployment,
-// more than one consumer can see the same message — without this a redelivery
-// silently created a second identical signal document.
+// Idempotency key: a retried publish of the same signal must not create a
+// second identical document.
 SignalSchema.index(
   { symbol: 1, generatedAt: 1, direction: 1 },
   { unique: true },

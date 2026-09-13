@@ -121,7 +121,7 @@ export interface PerformanceStats {
  * smaller than the row count implied.
  *
  * This is NOT the same as the unique (symbol, generatedAt, direction) index.
- * That one makes at-least-once SQS redelivery of the SAME message idempotent.
+ * That one makes a retried publish of the SAME signal idempotent.
  * This is a DIFFERENT message, generated 15 minutes later, describing the same
  * idea at nearly the same price.
  */

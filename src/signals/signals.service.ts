@@ -1,12 +1,6 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
-import {
-  SQSClient,
-  ReceiveMessageCommand,
-  DeleteMessageCommand,
-} from '@aws-sdk/client-sqs';
 import { Signal, SignalDocument } from './schemas/signal.schema';
 import { SignalsGateway } from './signals.gateway';
 import { SignalMessage, toSignalDocument } from './signal.mapper';
@@ -22,98 +16,25 @@ type EvaluatedSignal = Record<string, unknown> & SignalOutcome & {
 };
 
 @Injectable()
-export class SignalsService implements OnModuleInit, OnModuleDestroy {
+export class SignalsService {
   private readonly logger = new Logger(SignalsService.name);
-  private sqs: SQSClient | null = null;
-  private queueUrl = '';
-  private polling = false;
-  private pollTimer: NodeJS.Timeout | null = null;
-  private pollFailures = 0;
 
   constructor(
     @InjectModel(Signal.name) private readonly signalModel: Model<SignalDocument>,
-    private readonly config: ConfigService,
     private readonly gateway: SignalsGateway,
     private readonly upstream: SignalsUpstreamClient,
   ) {}
 
-  onModuleInit() {
-    this.queueUrl = this.config.get<string>('SQS_SIGNALS_QUEUE_URL') ?? '';
-    if (!this.queueUrl) {
-      this.logger.warn('SQS_SIGNALS_QUEUE_URL not set — signal polling disabled');
-      return;
-    }
-
-    this.sqs = new SQSClient({
-      region: this.config.get<string>('AWS_REGION') ?? 'ap-south-1',
-      credentials: {
-        accessKeyId: this.config.get<string>('AWS_ACCESS_KEY_ID') ?? '',
-        secretAccessKey: this.config.get<string>('AWS_SECRET_ACCESS_KEY') ?? '',
-      },
-    });
-
-    this.polling = true;
-    this.poll();
-    this.logger.log('SQS signal poller started');
-  }
-
-  onModuleDestroy() {
-    this.polling = false;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-  }
-
-  private async poll() {
-    if (!this.polling || !this.sqs) return;
-
-    try {
-      const result = await this.sqs.send(
-        new ReceiveMessageCommand({
-          QueueUrl: this.queueUrl,
-          MaxNumberOfMessages: 10,
-          WaitTimeSeconds: 20,       // long-poll — reduces cost vs busy-loop
-          VisibilityTimeout: 30,
-        }),
-      );
-
-      const messages = result.Messages ?? [];
-      await Promise.all(messages.map((msg) => this.handleMessage(msg)));
-      this.pollFailures = 0;
-    } catch (err) {
-      // Transient network blips (machine asleep, Docker restart, flaky DNS) are
-      // expected and self-heal — log them quietly and back off progressively so
-      // they don't drown out genuine errors. Everything else stays ERROR level.
-      const code = (err as { name?: string; code?: string })?.code ?? (err as Error)?.name ?? '';
-      const transient = ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH', 'NetworkingError', 'TimeoutError'].includes(code);
-      this.pollFailures += 1;
-
-      if (transient) {
-        this.logger.warn(`SQS unreachable (${code}) — retry #${this.pollFailures}`);
-      } else {
-        this.logger.error('SQS poll error', err);
-      }
-
-      // exponential backoff, capped at 60s — schedule the retry directly rather
-      // than sleeping here and then falling through to the 0ms reschedule.
-      const delay = Math.min(5000 * 2 ** (this.pollFailures - 1), 60_000);
-      if (this.polling) this.pollTimer = setTimeout(() => this.poll(), delay);
-      return;
-    }
-
-    // schedule next poll immediately (long-poll already waits 20s server-side)
-    if (this.polling) {
-      this.pollTimer = setTimeout(() => this.poll(), 0);
-    }
-  }
-
   /**
    * Persist one signal and broadcast it.
    *
-   * SQS is at-least-once, so a redelivery must be a no-op rather than a second
-   * document. The unique (symbol, generatedAt, direction) index on SignalSchema
-   * makes that a duplicate-key error, which is caught here and skipped.
+   * Called by the signals service over the internal endpoint. A retried POST
+   * must be a no-op rather than a second document: the unique
+   * (symbol, generatedAt, direction) index on SignalSchema makes that a
+   * duplicate-key error, which is caught here and skipped.
    * Returns the saved document, or null when the signal was already stored.
    */
-  private async persistSignal(payload: SignalMessage): Promise<SignalDocument | null> {
+  async persistSignal(payload: SignalMessage): Promise<SignalDocument | null> {
     const doc = toSignalDocument(payload);
 
     // Suppress a restatement of a setup we already hold. The screener re-runs
@@ -159,32 +80,6 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
         return null;
       }
       throw err;
-    }
-  }
-
-  private async handleMessage(msg: { Body?: string; ReceiptHandle?: string }) {
-    try {
-      const data = JSON.parse(msg.Body ?? '{}') as SignalMessage;
-
-      const signal = await this.persistSignal(data);
-      if (signal) {
-        this.logger.log(
-          `Signal saved: ${signal.symbol} ${signal.direction} @ ${signal.entryPrice}`,
-        );
-      }
-
-      // delete from queue only after successful processing
-      if (this.sqs) {
-        await this.sqs.send(
-          new DeleteMessageCommand({
-            QueueUrl: this.queueUrl,
-            ReceiptHandle: msg.ReceiptHandle!,
-          }),
-        );
-      }
-    } catch (err) {
-      this.logger.error('Failed to process signal message', err);
-      // message becomes visible again after VisibilityTimeout — automatic retry
     }
   }
 

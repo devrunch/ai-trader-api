@@ -41,12 +41,6 @@ export const envValidationSchema = Joi.object({
   // costs. See chat/chat-budget.service.ts for the default.
   CHAT_DAILY_TOKEN_CAP: Joi.number().integer().positive().optional(),
 
-  SQS_SIGNALS_QUEUE_URL: Joi.string().uri().optional(),
-
-  AWS_REGION: Joi.string().default('ap-south-1'),
-  AWS_ACCESS_KEY_ID: Joi.string().allow('').optional(),
-  AWS_SECRET_ACCESS_KEY: Joi.string().allow('').optional(),
-
   GOOGLE_CLIENT_ID: Joi.string().allow('').optional(),
   GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional(),
   GOOGLE_CALLBACK_URL: Joi.string().allow('').optional(),

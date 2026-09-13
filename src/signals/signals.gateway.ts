@@ -270,7 +270,7 @@ export class SignalsGateway implements OnGatewayConnection, OnGatewayDisconnect,
     });
   }
 
-  // Called by SignalsService when a new signal arrives from the SQS queue.
+  // Called by SignalsService when the signals service publishes a new signal.
   // Takes `object` rather than `Record<string, unknown>` so hydrated Mongoose
   // documents can be passed without a cast at every call site.
   broadcastSignal(signal: object) {

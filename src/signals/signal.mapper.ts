@@ -1,7 +1,7 @@
 import { Signal } from './schemas/signal.schema';
 
 /**
- * The SQS payload published by the Python signals service
+ * The signal payload the Python signals service POSTs to /api/internal/signals
  * (`app/signals/service.py::_publish`).
  *
  * snake_case, matching the producer's language convention. This is the ONLY
@@ -23,7 +23,7 @@ export interface SignalMessage {
   generated_at?: string;
 }
 
-/** snake_case SQS payload → camelCase Mongoose document. */
+/** snake_case signal payload → camelCase Mongoose document. */
 export function toSignalDocument(payload: SignalMessage): Partial<Signal> {
   return {
     symbol: payload.symbol,
